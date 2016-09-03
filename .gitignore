@@ -1,3 +1,5 @@
 target
 dependency-reduced-pom.xml
 .settings
+.classpath
+.project
