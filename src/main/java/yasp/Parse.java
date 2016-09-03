@@ -407,24 +407,17 @@ public class Parse {
                         entry.stuns = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_fStuns", teamSlot);
                     }
 
-                    try
-                    {
-                        entry.level = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iLevel", validIndices[i]);
-                        entry.kills = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iKills", validIndices[i]);
-                        entry.deaths = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iDeaths", validIndices[i]);
-                        entry.assists = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iAssists", validIndices[i]);
-                        entry.denies = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iDenyCount", teamSlot);
-                        entry.obs_placed = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iObserverWardsPlaced", teamSlot);
-                        entry.sen_placed = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iSentryWardsPlaced", teamSlot);
-                        entry.creeps_stacked = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iCreepsStacked", teamSlot);
-                        entry.camps_stacked = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iCampsStacked", teamSlot);
-                        entry.rune_pickups = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iRunePickups", teamSlot);
-                    }
-                    catch(Exception e)
-                    {
-                        //swallow exceptions encountered while trying to get these additional values
-                        //System.err.println(e);
-                    }
+                    entry.level = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iLevel", validIndices[i]);
+                    entry.kills = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iKills", validIndices[i]);
+                    entry.deaths = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iDeaths", validIndices[i]);
+                    entry.assists = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iAssists", validIndices[i]);
+                    entry.denies = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iDenyCount", teamSlot);
+                    entry.obs_placed = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iObserverWardsPlaced", teamSlot);
+                    entry.sen_placed = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iSentryWardsPlaced", teamSlot);
+                    entry.creeps_stacked = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iCreepsStacked", teamSlot);
+                    entry.camps_stacked = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iCampsStacked", teamSlot);
+                    entry.rune_pickups = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iRunePickups", teamSlot);
+                    
                     //TODO: gem, rapier time?
                     //need to dump inventory items for each player and possibly keep track of item entity handles
                     
@@ -472,14 +465,19 @@ public class Parse {
     }
 
     public <T> T getEntityProperty(Entity e, String property, Integer idx) {
-        if (e == null) {
-            return null;
-        }
-        if (idx != null) {
-            property = property.replace("%i", Util.arrayIdxToString(idx));
-        }
-        FieldPath fp = e.getDtClass().getFieldPathForName(property);
-        return e.getPropertyForFieldPath(fp);
+    	try {
+	        if (e == null) {
+	            return null;
+	        }
+	        if (idx != null) {
+	            property = property.replace("%i", Util.arrayIdxToString(idx));
+	        }
+	        FieldPath fp = e.getDtClass().getFieldPathForName(property);
+	        return e.getPropertyForFieldPath(fp);
+    	}
+    	catch (Exception ex) {
+    		return null;
+    	}
     }
     
     public void processEntity(Context ctx, Entity e, boolean entityLeft)
@@ -520,9 +518,13 @@ public class Parse {
             output(entry);
         }
         else if (e.getDtClass().getDtName().equals("CDOTAWearableItem")) {
-        	Integer accountId = getEntityProperty(e, "m_iAccountId", null);
+        	Integer accountId = getEntityProperty(e, "m_iAccountID", null);
         	Integer itemDefinitionIndex = getEntityProperty(e, "m_iItemDefinitionIndex", null);
-        	cosmeticsMap.put(itemDefinitionIndex, accountId);
+        	//System.err.format("%s,%s\n", accountId, itemDefinitionIndex);
+        	if (accountId > 0)
+        	{
+        		cosmeticsMap.put(itemDefinitionIndex, accountId);
+        	}
         }
     }
 }

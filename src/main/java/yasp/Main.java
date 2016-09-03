@@ -23,7 +23,13 @@ public class Main {
             t.sendResponseHeaders(200, 0);
             InputStream is = t.getRequestBody();
             OutputStream os = t.getResponseBody();
-            new Parse(is, os);
+            try {
+            	new Parse(is, os);
+            }
+            catch (Exception e)
+            {
+            	e.printStackTrace();
+            }
             os.close();
         }
     }
