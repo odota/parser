@@ -433,11 +433,7 @@ public class Parse {
                         //get the hero's entity name, ex: CDOTA_Hero_Zuus
                         entry.unit = e.getDtClass().getDtName();
                         entry.hero_id = hero;
-                        // as of around 2016-08 the m_lifeState property is always 0.  Switch using m_iHealth instead.
-                        // 1,2 are dead, dying states.
-                        //entry.life_state = getEntityProperty(e, "m_lifeState", null);
-                        Integer health = getEntityProperty(e, "m_iHealth", null);
-                        entry.life_state = health <= 0 ? 1 : 0;
+                        entry.life_state = getEntityProperty(e, "m_lifeState", null);
                         //System.err.format("%s: %s\n", entry.unit, entry.life_state);
                         //check if hero has been assigned to entity
                         if (hero > 0) 
