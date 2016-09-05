@@ -1,0 +1,18 @@
+sudo: required
+language: java
+services:
+- docker
+notifications:
+  email:
+  - howardc93@gmail.com
+  - aqc2109@columbia.edu
+script:
+- docker build -t yasp/parser .
+deploy:
+  provider: script
+  skip_cleanup: true
+  on:
+    branch: master
+  script: scripts/postbuild.sh
+
+
