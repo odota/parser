@@ -38,7 +38,64 @@ import java.io.InputStream;
 import java.io.OutputStream;
     
 public class Parse {
-    private final Logger log = LoggerFactory.getLogger(Main.class.getPackage().getClass());
+	private class Entry {
+		public Integer time;
+		public String type;
+		public Integer team;
+		public String unit;
+		public String key;
+		public Integer value;
+		public Integer slot;
+		public Integer player_slot;
+		//chat event fields
+		public Integer player1;
+		public Integer player2;
+		//combat log fields
+		public String attackername;
+		public String targetname;
+		public String sourcename;
+		public String targetsourcename;
+		public Boolean attackerhero;
+		public Boolean targethero;
+		public Boolean attackerillusion;
+		public Boolean targetillusion;
+		public String inflictor;
+		public Integer gold_reason;
+		public Integer xp_reason;
+		public String valuename;
+		//public Float stun_duration;
+		//public Float slow_duration;
+		//entity fields
+		public Integer gold;
+		public Integer lh;
+		public Integer xp;
+		public Integer x;
+		public Integer y;
+		public Integer z;
+		public Float stuns;
+		public Integer hero_id;
+		public Integer life_state;
+		public Integer level;
+		public Integer kills;
+		public Integer deaths;
+		public Integer assists;
+		public Integer denies;
+		//public Boolean hasPredictedVictory;
+		public Boolean entityleft;
+		public Integer ehandle;
+		public Integer obs_placed;
+		public Integer sen_placed;
+		public Integer creeps_stacked;
+		public Integer camps_stacked;
+		public Integer rune_pickups;
+		
+		public Entry() {
+		}
+		
+		public Entry(Integer time) {
+			this.time = time;
+		}
+	}
     float INTERVAL = 1;
     float nextInterval = 0;
     Integer time = 0;
@@ -49,6 +106,7 @@ public class Parse {
     private Gson g = new Gson();
     HashMap<String, Integer> name_to_slot = new HashMap<String, Integer>();
     HashMap<Integer, Integer> slot_to_playerslot = new HashMap<Integer, Integer>();
+	HashMap<Integer, Integer> cosmeticsMap = new HashMap<Integer, Integer>();
     InputStream is = null;
     OutputStream os = null;
     
@@ -62,64 +120,6 @@ public class Parse {
       System.err.format("total time taken: %s\n", (tMatch) / 1000.0);
     }
     
-    private class Entry {
-        public Integer time;
-        public String type;
-        public Integer team;
-        public String unit;
-        public String key;
-        public Integer value;
-        public Integer slot;
-        public Integer player_slot;
-        //chat event fields
-        public Integer player1;
-        public Integer player2;
-        //combat log fields
-        public String attackername;
-        public String targetname;
-        public String sourcename;
-        public String targetsourcename;
-        public Boolean attackerhero;
-        public Boolean targethero;
-        public Boolean attackerillusion;
-        public Boolean targetillusion;
-        public String inflictor;
-        public Integer gold_reason;
-        public Integer xp_reason;
-        public String valuename;
-        //public Float stun_duration;
-        //public Float slow_duration;
-        //entity fields
-        public Integer gold;
-        public Integer lh;
-        public Integer xp;
-        public Integer x;
-        public Integer y;
-        public Integer z;
-        public Float stuns;
-        public Integer hero_id;
-        public Integer life_state;
-        public Integer level;
-        public Integer kills;
-        public Integer deaths;
-        public Integer assists;
-        public Integer denies;
-        //public Boolean hasPredictedVictory;
-        public Boolean entityleft;
-        public Integer ehandle;
-        public Integer obs_placed;
-        public Integer sen_placed;
-        public Integer creeps_stacked;
-        public Integer camps_stacked;
-        public Integer rune_pickups;
-        
-        public Entry() {
-        }
-        
-        public Entry(Integer time) {
-            this.time = time;
-        }
-    }
 
     public void output(Entry e) {
         try {
@@ -237,6 +237,12 @@ public class Parse {
         //matchIdEntry.value = message.getGameInfo().getDota().getMatchId();
         //output(matchIdEntry);
         
+        // Extracted cosmetics data from CDOTAWearableItem entities
+    	Entry cosmeticsEntry = new Entry();
+    	cosmeticsEntry.type = "cosmetics";
+    	cosmeticsEntry.key = new Gson().toJson(cosmeticsMap);
+    	output(cosmeticsEntry);
+        
         //emit epilogue event to mark finish
         Entry epilogueEntry = new Entry();
         epilogueEntry.type = "epilogue";
@@ -286,12 +292,12 @@ public class Parse {
 
     @OnEntityEntered
     public void onEntityEntered(Context ctx, Entity e) {
-        processWardEntity(ctx, e, false);
+        processEntity(ctx, e, false);
     }
     
     @OnEntityLeft
     public void onEntityLeft(Context ctx, Entity e) {
-        processWardEntity(ctx, e, true);
+        processEntity(ctx, e, true);
     }
 
     @UsesEntities
@@ -381,6 +387,9 @@ public class Parse {
                     int handle = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_hSelectedHero", validIndices[i]);
                     int playerTeam = getEntityProperty(pr, "m_vecPlayerData.%i.m_iPlayerTeam", validIndices[i]);
                     int teamSlot = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iTeamSlot", validIndices[i]);
+                    //m_vecPlayerTeamData.%i.m_bHasRepicked
+                    //m_vecPlayerTeamData.%i.m_bHasRandomed
+                    //m_vecPlayerTeamData.%i.m_bHasPredictedVictory
                     //System.err.format("hero:%s i:%s teamslot:%s playerteam:%s\n", hero, i, teamSlot, playerTeam);
 
                     //2 is radiant, 3 is dire, 1 is other?
@@ -398,24 +407,17 @@ public class Parse {
                         entry.stuns = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_fStuns", teamSlot);
                     }
 
-                    try
-                    {
-                        entry.level = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iLevel", validIndices[i]);
-                        entry.kills = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iKills", validIndices[i]);
-                        entry.deaths = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iDeaths", validIndices[i]);
-                        entry.assists = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iAssists", validIndices[i]);
-                        entry.denies = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iDenyCount", teamSlot);
-                        entry.obs_placed = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iObserverWardsPlaced", teamSlot);
-                        entry.sen_placed = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iSentryWardsPlaced", teamSlot);
-                        entry.creeps_stacked = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iCreepsStacked", teamSlot);
-                        entry.camps_stacked = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iCampsStacked", teamSlot);
-                        entry.rune_pickups = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iRunePickups", teamSlot);
-                    }
-                    catch(Exception e)
-                    {
-                        //swallow exceptions encountered while trying to get these additional values
-                        //System.err.println(e);
-                    }
+                    entry.level = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iLevel", validIndices[i]);
+                    entry.kills = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iKills", validIndices[i]);
+                    entry.deaths = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iDeaths", validIndices[i]);
+                    entry.assists = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iAssists", validIndices[i]);
+                    entry.denies = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iDenyCount", teamSlot);
+                    entry.obs_placed = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iObserverWardsPlaced", teamSlot);
+                    entry.sen_placed = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iSentryWardsPlaced", teamSlot);
+                    entry.creeps_stacked = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iCreepsStacked", teamSlot);
+                    entry.camps_stacked = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iCampsStacked", teamSlot);
+                    entry.rune_pickups = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iRunePickups", teamSlot);
+                    
                     //TODO: gem, rapier time?
                     //need to dump inventory items for each player and possibly keep track of item entity handles
                     
@@ -459,17 +461,22 @@ public class Parse {
     }
 
     public <T> T getEntityProperty(Entity e, String property, Integer idx) {
-        if (e == null) {
-            return null;
-        }
-        if (idx != null) {
-            property = property.replace("%i", Util.arrayIdxToString(idx));
-        }
-        FieldPath fp = e.getDtClass().getFieldPathForName(property);
-        return e.getPropertyForFieldPath(fp);
+    	try {
+	        if (e == null) {
+	            return null;
+	        }
+	        if (idx != null) {
+	            property = property.replace("%i", Util.arrayIdxToString(idx));
+	        }
+	        FieldPath fp = e.getDtClass().getFieldPathForName(property);
+	        return e.getPropertyForFieldPath(fp);
+    	}
+    	catch (Exception ex) {
+    		return null;
+    	}
     }
     
-    public void processWardEntity(Context ctx, Entity e, boolean entityLeft)
+    public void processEntity(Context ctx, Entity e, boolean entityLeft)
     {
         //CDOTA_NPC_Observer_Ward
         //CDOTA_NPC_Observer_Ward_TrueSight
@@ -505,6 +512,15 @@ public class Parse {
             //2/3 radiant/dire
             //entry.team = e.getProperty("m_iTeamNum");
             output(entry);
+        }
+        else if (e.getDtClass().getDtName().equals("CDOTAWearableItem")) {
+        	Integer accountId = getEntityProperty(e, "m_iAccountID", null);
+        	Integer itemDefinitionIndex = getEntityProperty(e, "m_iItemDefinitionIndex", null);
+        	//System.err.format("%s,%s\n", accountId, itemDefinitionIndex);
+        	if (accountId > 0)
+        	{
+        		cosmeticsMap.put(itemDefinitionIndex, accountId);
+        	}
         }
     }
 }

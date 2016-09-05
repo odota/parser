@@ -11,7 +11,7 @@ import com.sun.net.httpserver.HttpServer;
 public class Main {
 
     public static void main(String[] args) throws Exception {
-        HttpServer server = HttpServer.create(new InetSocketAddress(Integer.valueOf(args[0])), 0);
+        HttpServer server = HttpServer.create(new InetSocketAddress(Integer.valueOf(args.length > 0 ? args[0] : "5600")), 0);
         server.createContext("/", new MyHandler());
         server.setExecutor(java.util.concurrent.Executors.newFixedThreadPool(4));
         server.start();
@@ -23,7 +23,13 @@ public class Main {
             t.sendResponseHeaders(200, 0);
             InputStream is = t.getRequestBody();
             OutputStream os = t.getResponseBody();
-            new Parse(is, os);
+            try {
+            	new Parse(is, os);
+            }
+            catch (Exception e)
+            {
+            	e.printStackTrace();
+            }
             os.close();
         }
     }
