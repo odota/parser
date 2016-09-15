@@ -11,16 +11,10 @@ import com.sun.net.httpserver.HttpServer;
     
 public class Main {
     
-    public static void main(String[] args) {
-	try { 
-                       
-	    if (args.length > 0 && args[0].equals("--file")) { System.exit(parse(args[1])); }
-            else if (args.length >0 && args[0].equals("--")) { System.exit(parseStream(System.in, System.out)); }
-            else { startServer(args); }
-	}
-	catch (Exception e) {
-	    e.printStackTrace();
-	}
+    public static void main(String[] args) throws Exception {
+        if (args.length > 0 && args[0].equals("--file")) { System.exit(parseFile(args[1])); }
+        else if (args.length > 0 && args[0].equals("--")) { System.exit(parseStream(System.in, System.out)); }
+        else { startServer(args); }
     }
     
     public static void startServer(String[] args) throws Exception {
@@ -30,7 +24,7 @@ public class Main {
 	server.start();
     }
 
-    static int parseStream(InputStream is, OutputStream os) throws IOException {
+    private static int parseStream(InputStream is, OutputStream os) throws IOException {
 	try {
 	    new Parse(is, os);
 	}
@@ -47,9 +41,9 @@ public class Main {
         return 0;
     }
     
-    static int parse(String replay_file) throws Exception {
-	System.out.print(String.format("Parsing file %s", replay_file)); 
-	return parseStream(new FileInputStream(replay_file), System.out);
+    private static int parseFile(String replayFile) throws Exception {
+	System.out.print(String.format("Parsing file %s", replayFile)); 
+	return parseStream(new FileInputStream(replayFile), System.out);
     }
 
     static class MyHandler implements HttpHandler {

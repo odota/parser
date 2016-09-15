@@ -14,6 +14,6 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(value = ElementType.METHOD)
 @UsagePointMarker(value = UsagePointType.EVENT_LISTENER, parameterClasses = { Entity.class, String.class })
-public @interface OnWardCountered { 
+public @interface OnWardKilled { 
 }
 

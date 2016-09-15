@@ -37,12 +37,10 @@ import java.util.Iterator;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Iterator;
-import yasp.processors.warding.OnWardCountered;
 import yasp.processors.warding.OnWardExpired;
 import yasp.processors.warding.OnWardPlaced;
-
-
+import yasp.processors.warding.OnWardKilled;
+    
 public class Parse {
 	private class Entry {
 		public Integer time;
@@ -298,8 +296,7 @@ public class Parse {
     }
 
     @OnEntityEntered
-    @OnEntityLeft
-    public void onEntityExistenceChanged(Context ctx, Entity e) {
+    public void onEntityEntered(Context ctx, Entity e) {
          processEntity(ctx, e);
     }
  
@@ -478,10 +475,10 @@ public class Parse {
         }
     }
     
-    @OnWardCountered
-    public void onWardCountered(Context ctx, Entity e, String killer_hero_name) {
+    @OnWardKilled
+    public void onWardKilled(Context ctx, Entity e, String killerHeroName) {
         Entry wardEntry = buildWardEntry(ctx, e);
-        wardEntry.attackername = killer_hero_name;
+        wardEntry.attackername = killerHeroName;
         output(wardEntry);
     }
     
@@ -520,9 +517,9 @@ public class Parse {
 	}
     }
 
-    Entry buildWardEntry(Context ctx, Entity e) {
+    private Entry buildWardEntry(Context ctx, Entity e) {
 	Entry entry = new Entry(time);
-        boolean isObserver = e.getDtClass().getDtName().equals("CDOTA_NPC_Observer_Ward");
+        boolean isObserver = !e.getDtClass().getDtName().contains("TrueSight");
 	Integer x = getEntityProperty(e, "CBodyComponent.m_cellX", null);
 	Integer y = getEntityProperty(e, "CBodyComponent.m_cellY", null);
 	Integer z = getEntityProperty(e, "CBodyComponent.m_cellZ", null);
@@ -536,8 +533,9 @@ public class Parse {
 	entry.key = Arrays.toString(pos);
 	entry.ehandle = e.getHandle();
 
-	if (entry.entityleft)
+	if (entry.entityleft) {
 	    entry.type += "_left";
+        }
 	
 	//System.err.println(entry.key);
 	Integer owner = getEntityProperty(e, "m_hOwnerEntity", null);

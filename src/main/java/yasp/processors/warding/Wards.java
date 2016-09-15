@@ -33,11 +33,13 @@ import skadistats.clarity.wire.common.proto.DotaUserMessages;
  * @author micaelbergeron
  */
 @UsesEntities
-@Provides({ OnWardCountered.class, OnWardExpired.class, OnWardPlaced.class })
+@Provides({ OnWardKilled.class, OnWardExpired.class, OnWardPlaced.class })
 public class Wards {
     
     private static final Set<String> WARDS_DT_CLASSES = new HashSet<String>(Arrays.asList(
         new String[] {
+            "DT_DOTA_NPC_Observer_Ward",
+            "DT_DOTA_NPC_Observer_Ward_TrueSight",
             "CDOTA_NPC_Observer_Ward",
             "CDOTA_NPC_Observer_Ward_TrueSight"
         }
@@ -56,7 +58,7 @@ public class Wards {
     private final Queue<String> wardKillers = new ArrayDeque<>();
     private Queue<ProcessEntityCommand> toProcess = new ArrayDeque<>();
 
-    private Event<OnWardCountered> evCountered;
+    private Event<OnWardKilled> evKilled;
     private Event<OnWardExpired> evExpired;
     private Event<OnWardPlaced> evPlaced;
     
@@ -71,9 +73,9 @@ public class Wards {
         }
     } 
         
-    @Initializer(OnWardCountered.class)
-    public void initOnWardCountered(final Context ctx, final EventListener<OnWardCountered> listener) {
-        evCountered = ctx.createEvent(OnWardCountered.class, Entity.class, String.class);
+    @Initializer(OnWardKilled.class)
+    public void initOnWardKilled(final Context ctx, final EventListener<OnWardKilled> listener) {
+        evKilled = ctx.createEvent(OnWardKilled.class, Entity.class, String.class);
     }
     
     @Initializer(OnWardExpired.class)
@@ -94,8 +96,9 @@ public class Wards {
         
         clearCachedState(e);
         ensureFieldPathForEntityInitialized(e);
-        if ((lifeStatePath = getFieldPathForEntity(e)) != null)
-            processLifeStateChange(e, lifeStatePath);        
+        if ((lifeStatePath = getFieldPathForEntity(e)) != null) {
+            processLifeStateChange(e, lifeStatePath);
+        }
     }
         
     @OnEntityUpdated
@@ -121,8 +124,9 @@ public class Wards {
         if (!isWardDeath(entry)) return;
         
         String killer;
-        if ((killer = entry.getAttackerName()) != null)
-            wardKillers.add(killer);              
+        if ((killer = entry.getAttackerName()) != null) {
+            wardKillers.add(killer);
+        }
     }
     
     @OnTickEnd
@@ -165,17 +169,20 @@ public class Wards {
         if (oldState != newState) {
             switch(newState) {
                 case 0:
-                    if (evPlaced != null)
+                    if (evPlaced != null) {
                         evPlaced.raise(e);
+                    }
                     break;
                 case 1:
                     String killer;
                     if ((killer = wardKillers.poll()) != null) {
-                        if (evCountered != null)
-                            evCountered.raise(e, killer);
+                        if (evKilled != null) {
+                            evKilled.raise(e, killer);
+                        }
                     } else {
-                        if (evExpired != null)
+                        if (evExpired != null) {
                             evExpired.raise(e);
+                        }
                     }
                     break;
             }
