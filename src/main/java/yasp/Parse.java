@@ -106,6 +106,7 @@ public class Parse {
     private Gson g = new Gson();
     HashMap<String, Integer> name_to_slot = new HashMap<String, Integer>();
     HashMap<Integer, Integer> slot_to_playerslot = new HashMap<Integer, Integer>();
+    HashMap<Long, Integer> steamid_to_playerslot = new HashMap<Long, Integer>();
 	HashMap<Integer, Integer> cosmeticsMap = new HashMap<Integer, Integer>();
     InputStream is = null;
     OutputStream os = null;
@@ -365,6 +366,7 @@ public class Parse {
                             validIndices[added] = i;
                             added += 1;
                             slot_to_playerslot.put(added, entry.value);
+                            steamid_to_playerslot.put(steamid, entry.value);
                         }
                     }
                     catch(Exception e) 
@@ -519,7 +521,8 @@ public class Parse {
         	//System.err.format("%s,%s\n", accountId, itemDefinitionIndex);
         	if (accountId > 0)
         	{
-        		cosmeticsMap.put(itemDefinitionIndex, accountId);
+        	    Long accountId64 = 76561197960265728L + accountId;
+        		cosmeticsMap.put(itemDefinitionIndex, steamid_to_playerslot.get(accountId64));
         	}
         }
     }
