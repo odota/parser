@@ -7,7 +7,7 @@ notifications:
   - howardc93@gmail.com
   - aqc2109@columbia.edu
 script:
-- docker build -t yasp/parser .
+- docker build -t odota/parser .
 deploy:
   provider: script
   skip_cleanup: true
