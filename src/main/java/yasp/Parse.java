@@ -36,7 +36,8 @@ import java.util.List;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-    
+import java.util.Iterator;
+
 public class Parse {
 	private class Entry {
 		public Integer time;
@@ -294,6 +295,21 @@ public class Parse {
     @OnEntityEntered
     public void onEntityEntered(Context ctx, Entity e) {
         processEntity(ctx, e, false);
+        if (e.getDtClass().getDtName().equals("CDOTAWearableItem")) {
+        	Integer accountId = getEntityProperty(e, "m_iAccountID", null);
+        	Integer itemDefinitionIndex = getEntityProperty(e, "m_iItemDefinitionIndex", null);
+        	Integer ownerHandle = getEntityProperty(e, "m_hOwnerEntity", null);
+            Entity owner = ctx.getProcessor(Entities.class).getByHandle(ownerHandle);
+        	//System.err.format("%s,%s\n", accountId, itemDefinitionIndex);
+        	if (accountId > 0)
+        	{
+            	// Get the owner (a hero entity)
+            	Integer playerId = getEntityProperty(owner, "m_iPlayerID", null);
+        	    Long accountId64 = 76561197960265728L + accountId;
+        	    Integer playerSlot = steamid_to_playerslot.get(accountId64);
+        		cosmeticsMap.put(itemDefinitionIndex, playerSlot);
+        	}
+        }
     }
     
     @OnEntityLeft
@@ -304,6 +320,20 @@ public class Parse {
     @UsesEntities
     @OnTickStart
     public void onTickStart(Context ctx, boolean synthetic) {
+        /*
+        Iterator<Entity> cosmetics = ctx.getProcessor(Entities.class).getAllByDtName("CDOTAWearableItem");
+        while ( cosmetics.hasNext() )
+        {
+            Entity e = cosmetics.next();
+            Integer accountId = getEntityProperty(e, "m_iAccountID", null);
+        	Integer itemDefinitionIndex = getEntityProperty(e, "m_iItemDefinitionIndex", null);
+            if (itemDefinitionIndex == 7559)
+            {
+                System.err.format("%s,%s\n", accountId, itemDefinitionIndex);
+            }
+        }
+        */
+        
         //TODO check engine to decide whether to use s1 or s2 entities
         //ctx.getEngineType()
         
@@ -514,16 +544,6 @@ public class Parse {
             //2/3 radiant/dire
             //entry.team = e.getProperty("m_iTeamNum");
             output(entry);
-        }
-        else if (e.getDtClass().getDtName().equals("CDOTAWearableItem")) {
-        	Integer accountId = getEntityProperty(e, "m_iAccountID", null);
-        	Integer itemDefinitionIndex = getEntityProperty(e, "m_iItemDefinitionIndex", null);
-        	//System.err.format("%s,%s\n", accountId, itemDefinitionIndex);
-        	if (accountId > 0)
-        	{
-        	    Long accountId64 = 76561197960265728L + accountId;
-        		cosmeticsMap.put(itemDefinitionIndex, steamid_to_playerslot.get(accountId64));
-        	}
         }
     }
 }
