@@ -80,6 +80,7 @@
                             <mainClass>yasp.Main</mainClass>
                         </manifest>
                     </archive>
+                    <finalName>${project.build.finalName}-original</finalName>
                 </configuration>
             </plugin>
             <!-- this is used by clarity-example and clarity-analyzer -->
@@ -94,6 +95,9 @@
                         </goals>
                     </execution>
                 </executions>
+                <configuration>
+                    <filename>${project.build.finalName}.jar</filename>
+                </configuration>
             </plugin>
             <!-- for some reason the shade-plugin doesn't work well with clarity processors.
             <plugin>
