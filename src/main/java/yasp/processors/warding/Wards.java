@@ -6,7 +6,7 @@
 package yasp.processors.warding;
 
 import java.util.ArrayDeque;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -36,26 +36,32 @@ import skadistats.clarity.wire.common.proto.DotaUserMessages;
 @Provides({ OnWardKilled.class, OnWardExpired.class, OnWardPlaced.class })
 public class Wards {
     
-    private static final Set<String> WARDS_DT_CLASSES = new HashSet<String>(Arrays.asList(
-        new String[] {
-            "DT_DOTA_NPC_Observer_Ward",
-            "DT_DOTA_NPC_Observer_Ward_TrueSight",
-            "CDOTA_NPC_Observer_Ward",
-            "CDOTA_NPC_Observer_Ward_TrueSight"
-        }
-    ));
+    private static final Map<String, String> WARDS_TARGET_NAME_BY_DT_CLASS;   
+    private static final Set<String> WARDS_DT_CLASSES;
+    private static final Set<String> WARDS_TARGET_NAMES;
     
-    private static final Set<String> WARDS_TARGET_NAMES = new HashSet<String>(Arrays.asList(
-        new String[] {
-            "npc_dota_observer_wards",
-            "npc_dota_sentry_wards"
-        }
-    ));
+    static {
+        final String TARGET_NAME_OBSERVER = "npc_dota_observer_wards";
+        final String TARGET_NAME_SENTRY = "npc_dota_sentry_wards";
+        HashMap<String, String> target_by_dtclass = new HashMap<>(4);
+        
+        target_by_dtclass.put("DT_DOTA_NPC_Observer_Ward", TARGET_NAME_OBSERVER);
+        target_by_dtclass.put("CDOTA_NPC_Observer_Ward", TARGET_NAME_OBSERVER);
+        target_by_dtclass.put("DT_DOTA_NPC_Observer_Ward_TrueSight", TARGET_NAME_SENTRY);
+        target_by_dtclass.put("CDOTA_NPC_Observer_Ward_TrueSight", TARGET_NAME_SENTRY);
+        
+        WARDS_TARGET_NAME_BY_DT_CLASS = Collections.unmodifiableMap(target_by_dtclass);
+        WARDS_DT_CLASSES = Collections.unmodifiableSet(target_by_dtclass.keySet());
+        WARDS_TARGET_NAMES = Collections.unmodifiableSet(new HashSet<>(target_by_dtclass.values()));
+    }
+    
+    // simple inderection map
+    private static int[] WARD_DT_CLASSES_TO_TARGET_NAMES = new int[] {0, 0, 1, 1 };
     
     private final Map<Integer, FieldPath> lifeStatePaths = new HashMap<>();
     private final Map<Integer, Integer> currentLifeState = new HashMap<>();
 
-    private final Queue<String> wardKillers = new ArrayDeque<>();
+    private final Map<String, Queue<String>> wardKillersByWardClass = new HashMap<>();
     private Queue<ProcessEntityCommand> toProcess = new ArrayDeque<>();
 
     private Event<OnWardKilled> evKilled;
@@ -64,15 +70,15 @@ public class Wards {
     
     private class ProcessEntityCommand {
 
-        private Entity entity;
-        private FieldPath fieldPath;
+        private final Entity entity;
+        private final FieldPath fieldPath;
         
         public ProcessEntityCommand(Entity e, FieldPath p) {
             entity = e;
             fieldPath = p;
         }
-    } 
-        
+    }
+
     @Initializer(OnWardKilled.class)
     public void initOnWardKilled(final Context ctx, final EventListener<OnWardKilled> listener) {
         evKilled = ctx.createEvent(OnWardKilled.class, Entity.class, String.class);
@@ -87,7 +93,13 @@ public class Wards {
     public void initOnWardPlaced(final Context ctx, final EventListener<OnWardPlaced> listener) {
         evPlaced = ctx.createEvent(OnWardPlaced.class, Entity.class);
     }
-    
+
+    public Wards() {
+        WARDS_TARGET_NAMES.forEach((cls) -> {
+            wardKillersByWardClass.put(cls, new ArrayDeque<>());
+        });
+    }   
+        
     @OnEntityCreated
     public void onCreated(Context ctx, Entity e) {      
         if (!isWard(e)) return;
@@ -124,8 +136,8 @@ public class Wards {
         if (!isWardDeath(entry)) return;
         
         String killer;
-        if ((killer = entry.getAttackerName()) != null) {
-            wardKillers.add(killer);
+        if ((killer = entry.getDamageSourceName()) != null) {
+            wardKillersByWardClass.get(entry.getTargetName()).add(killer);
         }
     }
     
@@ -175,7 +187,7 @@ public class Wards {
                     break;
                 case 1:
                     String killer;
-                    if ((killer = wardKillers.poll()) != null) {
+                    if ((killer = wardKillersByWardClass.get(getWardTargetName(e.getDtClass().getDtName())).poll()) != null) {
                         if (evKilled != null) {
                             evKilled.raise(e, killer);
                         }
@@ -189,7 +201,10 @@ public class Wards {
         }
         
         currentLifeState.put(e.getIndex(), newState);
-    }   
+    }
     
+    private String getWardTargetName(String ward_dtclass_name) {
+        return WARDS_TARGET_NAME_BY_DT_CLASS.get(ward_dtclass_name);
+    }
 }
 
