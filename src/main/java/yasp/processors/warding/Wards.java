@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package yasp.processors.warding;
 
 import java.util.ArrayDeque;
@@ -54,9 +49,6 @@ public class Wards {
         WARDS_DT_CLASSES = Collections.unmodifiableSet(target_by_dtclass.keySet());
         WARDS_TARGET_NAMES = Collections.unmodifiableSet(new HashSet<>(target_by_dtclass.values()));
     }
-    
-    // simple inderection map
-    private static int[] WARD_DT_CLASSES_TO_TARGET_NAMES = new int[] {0, 0, 1, 1 };
     
     private final Map<Integer, FieldPath> lifeStatePaths = new HashMap<>();
     private final Map<Integer, Integer> currentLifeState = new HashMap<>();
