@@ -1,4 +1,4 @@
-package yasp;
+package opendota;
 
 import com.google.gson.Gson;
 import com.google.protobuf.GeneratedMessage;
@@ -466,7 +466,6 @@ public class Parse {
                         entry.unit = e.getDtClass().getDtName();
                         entry.hero_id = hero;
                         entry.life_state = getEntityProperty(e, "m_lifeState", null);
-                        //System.err.format("%s: %s\n", entry.unit, entry.life_state);
                         //check if hero has been assigned to entity
                         if (hero > 0) 
                         {

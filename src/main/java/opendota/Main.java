@@ -1,4 +1,4 @@
-package yasp;
+package opendota;
 
 import java.io.IOException;
 import java.io.InputStream;
