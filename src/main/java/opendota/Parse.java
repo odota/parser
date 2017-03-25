@@ -2,11 +2,13 @@ package opendota;
 
 import com.google.gson.Gson;
 import com.google.protobuf.GeneratedMessage;
+import com.sun.istack.internal.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import skadistats.clarity.decoder.Util;
 import skadistats.clarity.model.Entity;
 import skadistats.clarity.model.FieldPath;
+import skadistats.clarity.model.StringTable;
 import skadistats.clarity.model.s1.GameRulesStateType;
 import skadistats.clarity.processor.entities.Entities;
 import skadistats.clarity.processor.entities.OnEntityEntered;
@@ -19,6 +21,8 @@ import skadistats.clarity.processor.reader.OnTickStart;
 import skadistats.clarity.processor.runner.Context;
 import skadistats.clarity.processor.runner.SimpleRunner;
 import skadistats.clarity.model.CombatLogEntry;
+import skadistats.clarity.processor.stringtables.StringTables;
+import skadistats.clarity.processor.stringtables.UsesStringTable;
 import skadistats.clarity.source.InputStreamSource;
 import skadistats.clarity.source.MappedFileSource;
 import skadistats.clarity.wire.common.proto.Demo.CDemoFileInfo;
@@ -30,13 +34,11 @@ import skadistats.clarity.wire.common.proto.DotaUserMessages.DOTA_COMBATLOG_TYPE
 import skadistats.clarity.wire.s1.proto.S1UserMessages.CUserMsg_SayText2;
 import skadistats.clarity.wire.s2.proto.S2UserMessages.CUserMessageSayText2;
 import skadistats.clarity.wire.s2.proto.S2DotaGcCommon.CMsgDOTAMatch;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
+
+import java.util.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Iterator;
 
 public class Parse {
 	private class Entry {
@@ -75,6 +77,7 @@ public class Parse {
 		public Integer z;
 		public Float stuns;
 		public Integer hero_id;
+		public List<String> hero_inventory;
 		public Integer life_state;
 		public Integer level;
 		public Integer kills;
@@ -317,6 +320,7 @@ public class Parse {
         processEntity(ctx, e, true);
     }
 
+    @UsesStringTable("EntityNames")
     @UsesEntities
     @OnTickStart
     public void onTickStart(Context ctx, boolean synthetic) {
@@ -336,13 +340,13 @@ public class Parse {
         
         //TODO check engine to decide whether to use s1 or s2 entities
         //ctx.getEngineType()
-        
+
         //s1 DT_DOTAGameRulesProxy
         Entity grp = ctx.getProcessor(Entities.class).getByDtName("CDOTAGamerulesProxy");
         Entity pr = ctx.getProcessor(Entities.class).getByDtName("CDOTA_PlayerResource");
         Entity dData = ctx.getProcessor(Entities.class).getByDtName("CDOTA_DataDire");
         Entity rData = ctx.getProcessor(Entities.class).getByDtName("CDOTA_DataRadiant");
-        
+
         if (grp != null) 
         {
             //System.err.println(grp);
@@ -482,6 +486,8 @@ public class Parse {
                             //populate for combat log mapping
                             name_to_slot.put(combatLogName, entry.slot);
                             name_to_slot.put(combatLogName2, entry.slot);
+
+                            entry.hero_inventory = getHeroInventory(ctx, e);
                         }
                     }
                     output(entry);
@@ -489,6 +495,30 @@ public class Parse {
                 nextInterval += INTERVAL;
             }
         }
+    }
+
+    @Nullable
+    private List<String> getHeroInventory(Context ctx, Entity eHero) {
+        List<String> inventoryList = new ArrayList<>(6);
+        StringTable stEntityNames = ctx.getProcessor(StringTables.class).forName("EntityNames");
+        Entities entities = ctx.getProcessor(Entities.class);
+
+        for (int i = 0; i < 6; i++) {
+            Integer hItem = eHero.getProperty("m_hItems." + Util.arrayIdxToString(i));
+            if(hItem != 0xFFFFFF) {
+                Entity eItem = entities.getByHandle(hItem);
+                if(eItem == null) {
+                    return null;
+                }
+                String itemName = stEntityNames.getNameByIndex(eItem.getProperty("m_pEntity.m_nameStringableIndex"));
+                if(itemName == null) {
+                    return null;
+                }
+                inventoryList.add(itemName);
+            }
+        }
+
+        return inventoryList;
     }
 
     public <T> T getEntityProperty(Entity e, String property, Integer idx) {
