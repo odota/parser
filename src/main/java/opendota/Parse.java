@@ -497,7 +497,6 @@ public class Parse {
         }
     }
 
-    @Nullable
     private List<String> getHeroInventory(Context ctx, Entity eHero) {
         List<String> inventoryList = new ArrayList<>(6);
         StringTable stEntityNames = ctx.getProcessor(StringTables.class).forName("EntityNames");
