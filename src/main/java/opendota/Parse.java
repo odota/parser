@@ -2,7 +2,6 @@ package opendota;
 
 import com.google.gson.Gson;
 import com.google.protobuf.GeneratedMessage;
-import com.sun.istack.internal.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import skadistats.clarity.decoder.Util;
