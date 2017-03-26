@@ -40,6 +40,15 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 public class Parse {
+    private class Item {
+        String id;
+        //item_ward_dispenser uses num_changes for observer wards
+        //and num_secondary_changes for sentry wards count
+        //and is considered not stackable
+        Integer num_charges;
+        Integer num_secondary_charges;
+    }
+
 	private class Entry {
 		public Integer time;
 		public String type;
@@ -76,7 +85,7 @@ public class Parse {
 		public Integer z;
 		public Float stuns;
 		public Integer hero_id;
-		public List<String> hero_inventory;
+		public List<Item> hero_inventory;
 		public Integer life_state;
 		public Integer level;
 		public Integer kills;
@@ -496,8 +505,8 @@ public class Parse {
         }
     }
 
-    private List<String> getHeroInventory(Context ctx, Entity eHero) {
-        List<String> inventoryList = new ArrayList<>(6);
+    private List<Item> getHeroInventory(Context ctx, Entity eHero) {
+        List<Item> inventoryList = new ArrayList<>(6);
         StringTable stEntityNames = ctx.getProcessor(StringTables.class).forName("EntityNames");
         Entities entities = ctx.getProcessor(Entities.class);
 
@@ -512,7 +521,13 @@ public class Parse {
                 if(itemName == null) {
                     return null;
                 }
-                inventoryList.add(itemName);
+
+                Item item = new Item();
+                item.id = itemName;
+                item.num_charges = eItem.getProperty("m_iCurrentCharges");
+                item.num_secondary_charges = eItem.getProperty("m_iSecondaryCharges");
+
+                inventoryList.add(item);
             }
         }
 
