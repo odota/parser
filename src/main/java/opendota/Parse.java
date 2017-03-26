@@ -2,18 +2,14 @@ package opendota;
 
 import com.google.gson.Gson;
 import com.google.protobuf.GeneratedMessage;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import skadistats.clarity.decoder.Util;
 import skadistats.clarity.model.Entity;
 import skadistats.clarity.model.FieldPath;
 import skadistats.clarity.model.StringTable;
-import skadistats.clarity.model.s1.GameRulesStateType;
 import skadistats.clarity.processor.entities.Entities;
 import skadistats.clarity.processor.entities.OnEntityEntered;
 import skadistats.clarity.processor.entities.OnEntityLeft;
 import skadistats.clarity.processor.entities.UsesEntities;
-import skadistats.clarity.processor.gameevents.CombatLog;
 import skadistats.clarity.processor.gameevents.OnCombatLogEntry;
 import skadistats.clarity.processor.reader.OnMessage;
 import skadistats.clarity.processor.reader.OnTickStart;
@@ -23,9 +19,7 @@ import skadistats.clarity.model.CombatLogEntry;
 import skadistats.clarity.processor.stringtables.StringTables;
 import skadistats.clarity.processor.stringtables.UsesStringTable;
 import skadistats.clarity.source.InputStreamSource;
-import skadistats.clarity.source.MappedFileSource;
 import skadistats.clarity.wire.common.proto.Demo.CDemoFileInfo;
-import skadistats.clarity.wire.common.proto.Demo.CGameInfo.CDotaGameInfo.CPlayerInfo;
 import skadistats.clarity.wire.common.proto.DotaUserMessages.CDOTAUserMsg_ChatEvent;
 import skadistats.clarity.wire.common.proto.DotaUserMessages.CDOTAUserMsg_LocationPing;
 import skadistats.clarity.wire.common.proto.DotaUserMessages.CDOTAUserMsg_SpectatorPlayerUnitOrders;
@@ -40,6 +34,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 public class Parse {
+
 	private class Entry {
 		public Integer time;
 		public String type;
@@ -76,7 +71,7 @@ public class Parse {
 		public Integer z;
 		public Float stuns;
 		public Integer hero_id;
-		public List<String> hero_inventory;
+		public List<Item> hero_inventory;
 		public Integer life_state;
 		public Integer level;
 		public Integer kills;
@@ -99,6 +94,23 @@ public class Parse {
 			this.time = time;
 		}
 	}
+
+    private class Item {
+        String id;
+        //Charges can be used to determine how many items are stacked together on stackable items
+        Integer num_charges;
+        //item_ward_dispenser uses num_changes for observer wards
+        //and num_secondary_changes for sentry wards count
+        //and is considered not stackable
+        Integer num_secondary_charges;
+    }
+
+    private class UnknownItemFoundException extends RuntimeException {
+        public UnknownItemFoundException(String message) {
+            super(message);
+        }
+    }
+
     float INTERVAL = 1;
     float nextInterval = 0;
     Integer time = 0;
@@ -496,27 +508,59 @@ public class Parse {
         }
     }
 
-    private List<String> getHeroInventory(Context ctx, Entity eHero) {
-        List<String> inventoryList = new ArrayList<>(6);
-        StringTable stEntityNames = ctx.getProcessor(StringTables.class).forName("EntityNames");
-        Entities entities = ctx.getProcessor(Entities.class);
+    private List<Item> getHeroInventory(Context ctx, Entity eHero) {
+        List<Item> inventoryList = new ArrayList<>(6);
 
         for (int i = 0; i < 6; i++) {
-            Integer hItem = eHero.getProperty("m_hItems." + Util.arrayIdxToString(i));
-            if(hItem != 0xFFFFFF) {
-                Entity eItem = entities.getByHandle(hItem);
-                if(eItem == null) {
-                    return null;
+            try {
+                Item item = getHeroItem(ctx, eHero, i);
+                if(item != null) {
+                    inventoryList.add(item);
                 }
-                String itemName = stEntityNames.getNameByIndex(eItem.getProperty("m_pEntity.m_nameStringableIndex"));
-                if(itemName == null) {
-                    return null;
-                }
-                inventoryList.add(itemName);
+            } catch (UnknownItemFoundException e) {
+                return null;
             }
         }
 
         return inventoryList;
+    }
+
+    /**
+     * Uses "EntityNames" string table and Entities processor
+     * @param ctx Context
+     * @param eHero Hero entity
+     * @param idx 0-5 - inventory, 6-8 - backpack, 9-16 - stash
+     * @return {@code null} - empty slot. Throws @{@link UnknownItemFoundException} if item information can't be extracted
+     */
+    private Item getHeroItem(Context ctx, Entity eHero, int idx) throws UnknownItemFoundException {
+        StringTable stEntityNames = ctx.getProcessor(StringTables.class).forName("EntityNames");
+        Entities entities = ctx.getProcessor(Entities.class);
+
+        Integer hItem = eHero.getProperty("m_hItems." + Util.arrayIdxToString(idx));
+        if (hItem == 0xFFFFFF) {
+            return null;
+        }
+        Entity eItem = entities.getByHandle(hItem);
+        if(eItem == null) {
+            throw new UnknownItemFoundException(String.format("Can't find item by its handle (%d)", hItem));
+        }
+        String itemName = stEntityNames.getNameByIndex(eItem.getProperty("m_pEntity.m_nameStringableIndex"));
+        if(itemName == null) {
+            throw new UnknownItemFoundException("Can't get item name from EntityName string table");
+        }
+
+        Item item = new Item();
+        item.id = itemName;
+        int numCharges = eItem.getProperty("m_iCurrentCharges");
+        if(numCharges != 0) {
+            item.num_charges = numCharges;
+        }
+        int numSecondaryCharges = eItem.getProperty("m_iSecondaryCharges");
+        if(numSecondaryCharges != 0) {
+            item.num_secondary_charges = numSecondaryCharges;
+        }
+
+        return item;
     }
 
     public <T> T getEntityProperty(Entity e, String property, Integer idx) {
