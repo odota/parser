@@ -551,10 +551,14 @@ public class Parse {
 
         Item item = new Item();
         item.id = itemName;
-        item.num_charges = eItem.getProperty("m_iCurrentCharges");
-        if(item.num_charges == 0) item.num_charges = null;
-        item.num_secondary_charges = eItem.getProperty("m_iSecondaryCharges");
-        if(item.num_secondary_charges == 0) item.num_secondary_charges = null;
+        int numCharges = eItem.getProperty("m_iCurrentCharges");
+        if(numCharges != 0) {
+            item.num_charges = numCharges;
+        }
+        int numSecondaryCharges = eItem.getProperty("m_iSecondaryCharges");
+        if(numSecondaryCharges != 0) {
+            item.num_secondary_charges = numSecondaryCharges;
+        }
 
         return item;
     }
