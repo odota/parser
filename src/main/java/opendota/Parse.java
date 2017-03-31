@@ -78,7 +78,6 @@ public class Parse {
 		public Integer deaths;
 		public Integer assists;
 		public Integer denies;
-		//public Boolean hasPredictedVictory;
 		public Boolean entityleft;
 		public Integer ehandle;
 		public Integer obs_placed;
@@ -86,6 +85,9 @@ public class Parse {
 		public Integer creeps_stacked;
 		public Integer camps_stacked;
 		public Integer rune_pickups;
+		public Boolean repicked;
+		public Boolean randomed;
+		public Boolean pred_vict;
 		
 		public Entry() {
 		}
@@ -434,10 +436,6 @@ public class Parse {
                     int handle = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_hSelectedHero", validIndices[i]);
                     int playerTeam = getEntityProperty(pr, "m_vecPlayerData.%i.m_iPlayerTeam", validIndices[i]);
                     int teamSlot = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iTeamSlot", validIndices[i]);
-                    //m_vecPlayerTeamData.%i.m_bHasRepicked
-                    //m_vecPlayerTeamData.%i.m_bHasRandomed
-                    //m_vecPlayerTeamData.%i.m_bHasPredictedVictory
-                    //System.err.format("hero:%s i:%s teamslot:%s playerteam:%s\n", hero, i, teamSlot, playerTeam);
 
                     //2 is radiant, 3 is dire, 1 is other?
                     Entity dataTeam = playerTeam == 2 ? rData : dData;
@@ -445,6 +443,9 @@ public class Parse {
                     Entry entry = new Entry(time);
                     entry.type = "interval";
                     entry.slot = i;
+                    entry.repicked = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_bHasRepicked", validIndices[i]);
+                    entry.randomed = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_bHasRandomed", validIndices[i]);
+                    entry.pred_vict = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_bHasPredictedVictory", validIndices[i]); //
                     
                     if (teamSlot >= 0) 
                     {
