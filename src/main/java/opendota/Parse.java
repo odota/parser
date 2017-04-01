@@ -88,6 +88,8 @@ public class Parse {
 		public Boolean repicked;
 		public Boolean randomed;
 		public Boolean pred_vict;
+		public Float stun_duration;
+		public Float slow_duration;
 		
 		public Entry() {
 		}
@@ -282,18 +284,28 @@ public class Parse {
             combatLogEntry.sourcename = cle.getDamageSourceName();
             combatLogEntry.targetsourcename = cle.getTargetSourceName();
             combatLogEntry.inflictor = cle.getInflictorName();
-            combatLogEntry.gold_reason = cle.getGoldReason();
-            combatLogEntry.xp_reason = cle.getXpReason();
             combatLogEntry.attackerhero = cle.isAttackerHero();
             combatLogEntry.targethero = cle.isTargetHero();
             combatLogEntry.attackerillusion = cle.isAttackerIllusion();
             combatLogEntry.targetillusion = cle.isTargetIllusion();
             combatLogEntry.value = cle.getValue();
-            //combatLogEntry.stun_duration = cle.getStunDuration();
-            //combatLogEntry.slow_duration = cle.getSlowDuration();
+            float stunDuration = cle.getStunDuration();
+            if (stunDuration > 0) {
+            	combatLogEntry.stun_duration = stunDuration;
+            }
+            float slowDuration = cle.getSlowDuration();
+            if (slowDuration > 0) {
+            	combatLogEntry.slow_duration = slowDuration;
+            }
             //value may be out of bounds in string table, we can only get valuename if a purchase (type 11)
             if (cle.getType() == DOTA_COMBATLOG_TYPES.DOTA_COMBATLOG_PURCHASE) {
                 combatLogEntry.valuename = cle.getValueName();
+            }
+            else if (cle.getType() == DOTA_COMBATLOG_TYPES.DOTA_COMBATLOG_GOLD) {
+                combatLogEntry.gold_reason = cle.getGoldReason();
+            }
+            else if (cle.getType() == DOTA_COMBATLOG_TYPES.DOTA_COMBATLOG_XP) {
+                combatLogEntry.xp_reason = cle.getXpReason();
             }
             output(combatLogEntry);
             
