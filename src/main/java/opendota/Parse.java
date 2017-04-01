@@ -33,9 +33,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+import opendota.combatlogvisitors.CombatLogVisitors;
+import opendota.combatlogvisitors.VisitorResult;
+
 public class Parse {
 
-	private class Entry {
+	public class Entry {
 		public Integer time;
 		public String type;
 		public Integer team;
@@ -90,6 +93,8 @@ public class Parse {
 		public Boolean pred_vict;
 		public Float stun_duration;
 		public Float slow_duration;
+		public Boolean tracked_death;
+		public Integer greevils_greed_stack;
 		
 		public Entry() {
 		}
@@ -129,9 +134,12 @@ public class Parse {
 	HashMap<Integer, Integer> cosmeticsMap = new HashMap<Integer, Integer>();
     InputStream is = null;
     OutputStream os = null;
+	private CombatLogVisitors combatLogVisitors;
     
     public Parse(InputStream input, OutputStream output) throws IOException
     {
+      combatLogVisitors = new CombatLogVisitors(name_to_slot);
+    	
       is = input;
       os = output;
       long tStart = System.currentTimeMillis();
@@ -307,6 +315,11 @@ public class Parse {
             else if (cle.getType() == DOTA_COMBATLOG_TYPES.DOTA_COMBATLOG_XP) {
                 combatLogEntry.xp_reason = cle.getXpReason();
             }
+            
+            VisitorResult result = combatLogVisitors.visit(combatLogEntry);
+            combatLogEntry.greevils_greed_stack = result.greevilsGreedStack;
+            combatLogEntry.tracked_death = result.trackedDeath;
+
             output(combatLogEntry);
             
             if (cle.getType().ordinal() > 19) {
