@@ -36,8 +36,9 @@ public class GreevilsGreedVisitor implements Visitor<Integer> {
         		&& entry.attackername.equals("npc_dota_hero_alchemist")
         		&& !entry.attackerillusion) {
 
-        	if (isDeny(entry.targetname))
+        	if (isDeny(entry.targetname)) {
         		return null;
+        	}
         	
         	Iterator<Integer> iterator = lastHitTimings.iterator();
 			while(iterator.hasNext()) {
