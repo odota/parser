@@ -2,7 +2,7 @@ package opendota.combatlogvisitors;
 
 import opendota.Parse.Entry;
 
-public interface Visitor {
+public interface Visitor<T> {
 
-	void visit(Entry entry);
+	T visit(Entry entry);
 }

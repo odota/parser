@@ -33,7 +33,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-import opendota.combatlogvisitors.CombatLogVisitors;
+import opendota.combatlogvisitors.BountyHunterTrackVisitor;
+import opendota.combatlogvisitors.GreevilsGreedVisitor;
 
 public class Parse {
 
@@ -133,11 +134,13 @@ public class Parse {
 	HashMap<Integer, Integer> cosmeticsMap = new HashMap<Integer, Integer>();
     InputStream is = null;
     OutputStream os = null;
-	private CombatLogVisitors combatLogVisitors;
+	private GreevilsGreedVisitor greevilsGreedVisitor;
+	private BountyHunterTrackVisitor bountyHunterTrackVisitor;
     
     public Parse(InputStream input, OutputStream output) throws IOException
     {
-      combatLogVisitors = new CombatLogVisitors(name_to_slot);
+      greevilsGreedVisitor = new GreevilsGreedVisitor(name_to_slot);
+      bountyHunterTrackVisitor = new BountyHunterTrackVisitor();
     	
       is = input;
       os = output;
@@ -314,7 +317,9 @@ public class Parse {
             else if (cle.getType() == DOTA_COMBATLOG_TYPES.DOTA_COMBATLOG_XP) {
                 combatLogEntry.xp_reason = cle.getXpReason();
             }
-            combatLogVisitors.visit(combatLogEntry);
+            
+            combatLogEntry.greevils_greed_stack = greevilsGreedVisitor.visit(combatLogEntry);
+            combatLogEntry.tracked_death = bountyHunterTrackVisitor.visit(combatLogEntry);
 
             output(combatLogEntry);
             

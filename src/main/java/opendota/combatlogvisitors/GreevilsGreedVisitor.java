@@ -9,7 +9,7 @@ import java.util.Set;
 
 import opendota.Parse.Entry;
 
-public class GreevilsGreedVisitor implements Visitor {
+public class GreevilsGreedVisitor implements Visitor<Integer> {
 
     private static final int GREEVILS_GREED_WINDOW = 30;
     
@@ -23,7 +23,7 @@ public class GreevilsGreedVisitor implements Visitor {
 	}
 
 	@Override
-	public void visit(Entry entry) {
+	public Integer visit(Entry entry) {
         if (entry.type.equals(DOTA_COMBATLOG_MODIFIER_ADD)
         		&& entry.attackername.equals("npc_dota_hero_alchemist")
         		&& entry.inflictor.equals("modifier_alchemist_goblins_greed")
@@ -37,7 +37,7 @@ public class GreevilsGreedVisitor implements Visitor {
         		&& !entry.attackerillusion) {
 
         	if (isDeny(entry.targetname))
-        		return;
+        		return null;
         	
         	Iterator<Integer> iterator = lastHitTimings.iterator();
 			while(iterator.hasNext()) {
@@ -48,10 +48,13 @@ public class GreevilsGreedVisitor implements Visitor {
         		}
         	}
         	
-			entry.greevils_greed_stack = lastHitTimings.size();
+			int currentStack = lastHitTimings.size();
         	
         	lastHitTimings.add(entry.time);
+        	
+        	return currentStack;
         }
+        return null;
 	}
 	
 	private boolean isDeny(String targetName) {
