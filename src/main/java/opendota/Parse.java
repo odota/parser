@@ -34,6 +34,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 import opendota.combatlogvisitors.CombatLogVisitors;
+import opendota.combatlogvisitors.VisitorResult;
 
 public class Parse {
 
@@ -314,7 +315,10 @@ public class Parse {
             else if (cle.getType() == DOTA_COMBATLOG_TYPES.DOTA_COMBATLOG_XP) {
                 combatLogEntry.xp_reason = cle.getXpReason();
             }
-            combatLogVisitors.visit(combatLogEntry);
+            
+            VisitorResult result = combatLogVisitors.visit(combatLogEntry);
+            combatLogEntry.greevils_greed_stack = result.greevilsGreedStack;
+            combatLogEntry.tracked_death = result.trackedDeath;
 
             output(combatLogEntry);
             

@@ -14,8 +14,11 @@ public class CombatLogVisitors {
 		visitors = Arrays.asList(new BountyHunterTrackVisitor(),new GreevilsGreedVisitor(nameToSlot));
 	}
 	
-	public void visit(Entry entry) {
-		for (Visitor v : visitors)
-			v.visit(entry);
+	public VisitorResult visit(Entry entry) {
+		VisitorResult result = new VisitorResult(); 
+		for (Visitor v : visitors) {
+			v.visit(entry, result);
+		}
+		return result;
 	}
 }

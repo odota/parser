@@ -15,7 +15,7 @@ public class BountyHunterTrackVisitor implements Visitor {
 	HashMap<String, Boolean> trackStatus = new HashMap<String, Boolean>();
 
 	@Override
-	public void visit(Entry entry) {
+	public void visit(Entry entry, VisitorResult result) {
         if (entry.type.equals(DOTA_COMBATLOG_MODIFIER_ADD) && entry.inflictor.equals(BH_TRACK))
 			trackStatus.put(entry.targetname, true);
         
@@ -24,6 +24,6 @@ public class BountyHunterTrackVisitor implements Visitor {
         
         if (entry.type.equals(DOTA_COMBATLOG_DEATH))
 			if (trackStatus.getOrDefault(entry.targetname, false))
-				entry.tracked_death = true; 
+				result.trackedDeath = true; 
 	}
 }

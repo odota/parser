@@ -4,5 +4,5 @@ import opendota.Parse.Entry;
 
 public interface Visitor {
 
-	void visit(Entry entry);
+	void visit(Entry entry, VisitorResult result);
 }

@@ -23,7 +23,7 @@ public class GreevilsGreedVisitor implements Visitor {
 	}
 
 	@Override
-	public void visit(Entry entry) {
+	public void visit(Entry entry, VisitorResult result) {
         if (entry.type.equals(DOTA_COMBATLOG_MODIFIER_ADD)
         		&& entry.attackername.equals("npc_dota_hero_alchemist")
         		&& entry.inflictor.equals("modifier_alchemist_goblins_greed")
@@ -48,7 +48,7 @@ public class GreevilsGreedVisitor implements Visitor {
         		}
         	}
         	
-			entry.greevils_greed_stack = lastHitTimings.size();
+			result.greevilsGreedStack = lastHitTimings.size();
         	
         	lastHitTimings.add(entry.time);
         }
