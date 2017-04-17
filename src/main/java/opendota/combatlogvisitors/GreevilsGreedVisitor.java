@@ -1,13 +1,12 @@
 package opendota.combatlogvisitors;
 
-import static opendota.combatlogvisitors.CombatLogConstants.DOTA_COMBATLOG_MODIFIER_ADD;
-
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
-import opendota.Parse.Entry;
+import skadistats.clarity.model.CombatLogEntry;
+import skadistats.clarity.wire.common.proto.DotaUserMessages.DOTA_COMBATLOG_TYPES;
 
 public class GreevilsGreedVisitor implements Visitor<Integer> {
 
@@ -23,27 +22,27 @@ public class GreevilsGreedVisitor implements Visitor<Integer> {
 	}
 
 	@Override
-	public Integer visit(Entry entry) {
-        if (entry.type.equals(DOTA_COMBATLOG_MODIFIER_ADD)
-        		&& entry.attackername.equals("npc_dota_hero_alchemist")
-        		&& entry.inflictor.equals("modifier_alchemist_goblins_greed")
-        		&& !entry.attackerillusion) {
+	public Integer visit(int time, CombatLogEntry cle) {
+        if (cle.getType() == DOTA_COMBATLOG_TYPES.DOTA_COMBATLOG_MODIFIER_ADD
+        		&& cle.getAttackerName().equals("npc_dota_hero_alchemist")
+        		&& cle.getInflictorName().equals("modifier_alchemist_goblins_greed")
+        		&& !cle.isAttackerIllusion()) {
         	greevilsGreedLearned = true;
         }
         
         if (greevilsGreedLearned
-        		&& entry.type.equals(CombatLogConstants.DOTA_COMBATLOG_DEATH)
-        		&& entry.attackername.equals("npc_dota_hero_alchemist")
-        		&& !entry.attackerillusion) {
+        		&& cle.getType() == DOTA_COMBATLOG_TYPES.DOTA_COMBATLOG_DEATH
+        		&& cle.getAttackerName().equals("npc_dota_hero_alchemist")
+        		&& !cle.isAttackerIllusion()) {
 
-        	if (isDeny(entry.targetname)) {
+        	if (isDeny(cle.getTargetName())) {
         		return null;
         	}
         	
         	Iterator<Integer> iterator = lastHitTimings.iterator();
 			while(iterator.hasNext()) {
         		Integer lhTiming = iterator.next();
-				boolean isExpired = lhTiming + GREEVILS_GREED_WINDOW < entry.time;
+				boolean isExpired = lhTiming + GREEVILS_GREED_WINDOW < time;
 				if (isExpired) {
         			iterator.remove();
         		}
@@ -51,7 +50,7 @@ public class GreevilsGreedVisitor implements Visitor<Integer> {
         	
 			int currentStack = lastHitTimings.size();
         	
-        	lastHitTimings.add(entry.time);
+        	lastHitTimings.add(time);
         	
         	return currentStack;
         }
