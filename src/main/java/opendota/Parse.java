@@ -33,8 +33,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-import opendota.combatlogvisitors.BountyHunterTrackVisitor;
+import opendota.combatlogvisitors.TrackVisitor;
 import opendota.combatlogvisitors.GreevilsGreedVisitor;
+import opendota.combatlogvisitors.TrackVisitor.TrackStatus;
 
 public class Parse {
 
@@ -95,6 +96,7 @@ public class Parse {
 		public Float slow_duration;
 		public Boolean tracked_death;
 		public Integer greevils_greed_stack;
+		public String tracked_sourcename;
 		
 		public Entry() {
 		}
@@ -135,12 +137,12 @@ public class Parse {
     InputStream is = null;
     OutputStream os = null;
 	private GreevilsGreedVisitor greevilsGreedVisitor;
-	private BountyHunterTrackVisitor bountyHunterTrackVisitor;
+	private TrackVisitor trackVisitor;
     
     public Parse(InputStream input, OutputStream output) throws IOException
     {
       greevilsGreedVisitor = new GreevilsGreedVisitor(name_to_slot);
-      bountyHunterTrackVisitor = new BountyHunterTrackVisitor();
+      trackVisitor = new TrackVisitor();
     	
       is = input;
       os = output;
@@ -318,8 +320,12 @@ public class Parse {
                 combatLogEntry.xp_reason = cle.getXpReason();
             }
             
-            combatLogEntry.greevils_greed_stack = greevilsGreedVisitor.visit(combatLogEntry);
-            combatLogEntry.tracked_death = bountyHunterTrackVisitor.visit(combatLogEntry);
+            combatLogEntry.greevils_greed_stack = greevilsGreedVisitor.visit(time, cle);
+            TrackStatus trackStatus = trackVisitor.visit(time, cle);
+            if (trackStatus != null) {
+            	combatLogEntry.tracked_death = trackStatus.tracked;
+            	combatLogEntry.tracked_sourcename = trackStatus.inflictor;
+            }
 
             output(combatLogEntry);
             
