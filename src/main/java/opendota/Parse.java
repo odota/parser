@@ -20,6 +20,7 @@ import skadistats.clarity.processor.stringtables.StringTables;
 import skadistats.clarity.processor.stringtables.UsesStringTable;
 import skadistats.clarity.source.InputStreamSource;
 import skadistats.clarity.wire.common.proto.Demo.CDemoFileInfo;
+import skadistats.clarity.wire.common.proto.DotaUserMessages;
 import skadistats.clarity.wire.common.proto.DotaUserMessages.CDOTAUserMsg_ChatEvent;
 import skadistats.clarity.wire.common.proto.DotaUserMessages.CDOTAUserMsg_LocationPing;
 import skadistats.clarity.wire.common.proto.DotaUserMessages.CDOTAUserMsg_SpectatorPlayerUnitOrders;
@@ -169,17 +170,21 @@ public class Parse {
         System.out.println(message.toString());
     }
 
-    /*
-    //@OnMessage(CDOTAUserMsg_SpectatorPlayerClick.class)
-    public void onSpectatorPlayerClick(Context ctx, CDOTAUserMsg_SpectatorPlayerClick message){
+    /*@OnMessage(DotaUserMessages.CDOTAUserMsg_SpectatorPlayerClick.class)
+    public void onSpectatorPlayerClick(Context ctx, DotaUserMessages.CDOTAUserMsg_SpectatorPlayerClick message){
         Entry entry = new Entry(time);
         entry.type = "clicks";
         //need to get the entity by index
         entry.key = String.valueOf(message.getOrderType());
+
+        Entity e = ctx.getProcessor(Entities.class).getByIndex(message.getEntindex());
+        entry.x = getEntityProperty(e, "m_iCursor.0000", null);
+        entry.y = getEntityProperty(e, "m_iCursor.0001", null);
+        entry.slot = getEntityProperty(e, "m_iPlayerID", null);
         //theres also target_index
         output(entry);
-    }
-    */
+    } */
+
     
     @OnMessage(CMsgDOTAMatch.class)
     public void onDotaMatch(Context ctx, CMsgDOTAMatch message)
@@ -200,6 +205,12 @@ public class Parse {
         //System.err.println(h.getDtClass().getDtName());
         //break actions into types?
         entry.key = String.valueOf(message.getOrderType());
+
+        // write item_id if order_type: "DOTA_UNIT_ORDER_PURCHASE_ITEM"
+        if (entry.key.equals("16") && message.hasAbilityIndex()) {
+            entry.value = message.getAbilityIndex();
+        }
+
         //System.err.println(message);
         output(entry);
     }
