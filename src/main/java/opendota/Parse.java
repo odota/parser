@@ -139,6 +139,7 @@ public class Parse {
     OutputStream os = null;
 	private GreevilsGreedVisitor greevilsGreedVisitor;
 	private TrackVisitor trackVisitor;
+    private ArrayList<Boolean> isPlayerStartingItemsWritten;
     
     public Parse(InputStream input, OutputStream output) throws IOException
     {
@@ -147,6 +148,8 @@ public class Parse {
     	
       is = input;
       os = output;
+      isPlayerStartingItemsWritten = new ArrayList<>(Arrays.asList(new Boolean[10]));
+      Collections.fill(isPlayerStartingItemsWritten, Boolean.FALSE);
       long tStart = System.currentTimeMillis();
       new SimpleRunner(new InputStreamSource(is)).runWith(this);
       long tMatch = System.currentTimeMillis() - tStart;
@@ -204,12 +207,6 @@ public class Parse {
         //Entity h = ctx.getProcessor(Entities.class).getByHandle(handle);
         //System.err.println(h.getDtClass().getDtName());
         //break actions into types?
-        entry.key = String.valueOf(message.getOrderType());
-
-        // write item_id if order_type: "DOTA_UNIT_ORDER_PURCHASE_ITEM"
-        if (entry.key.equals("16") && message.hasAbilityIndex()) {
-            entry.value = message.getAbilityIndex();
-        }
 
         //System.err.println(message);
         output(entry);
@@ -543,6 +540,20 @@ public class Parse {
                             name_to_slot.put(combatLogName2, entry.slot);
 
                             entry.hero_inventory = getHeroInventory(ctx, e);
+                            entry.hero_inventory = getHeroInventory(ctx, e);
+                            if (entry.hero_inventory != null && !isPlayerStartingItemsWritten.get(entry.slot)) {
+                                // Making something similar to DOTA_COMBATLOG_PURCHASE for each item in the beginning of the game
+                                isPlayerStartingItemsWritten.set(entry.slot, true);
+                                for (Item item : entry.hero_inventory) {
+                                    Entry startingItemsEntry = new Entry(time);
+                                    startingItemsEntry.type = "DOTA_COMBATLOG_PURCHASE";
+                                    startingItemsEntry.slot = entry.slot;
+                                    startingItemsEntry.value = (entry.slot < 5 ? 0 : 123) + entry.slot;
+                                    startingItemsEntry.valuename = item.id;
+                                    startingItemsEntry.targetname = combatLogName;
+                                    output(startingItemsEntry);
+                                }
+                            }
                         }
                     }
                     output(entry);
