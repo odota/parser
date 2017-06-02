@@ -98,6 +98,8 @@ public class Parse {
 		public Boolean tracked_death;
 		public Integer greevils_greed_stack;
 		public String tracked_sourcename;
+		public Integer firstblood_claimed;
+		public Float teamfight_participation;
 		
 		public Entry() {
 		}
@@ -488,7 +490,9 @@ public class Parse {
                     entry.slot = i;
                     entry.repicked = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_bHasRepicked", validIndices[i]);
                     entry.randomed = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_bHasRandomed", validIndices[i]);
-                    entry.pred_vict = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_bHasPredictedVictory", validIndices[i]); //
+                    entry.pred_vict = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_bHasPredictedVictory", validIndices[i]);
+                    entry.firstblood_claimed = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iFirstBloodClaimed", validIndices[i]);
+                    entry.teamfight_participation = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_flTeamFightParticipation", validIndices[i]);;
                     
                     if (teamSlot >= 0) 
                     {

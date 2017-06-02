@@ -1,1 +1,1 @@
- curl localhost:5600 --data-binary "@C:\Program Files (x86)\Steam\steamapps\common\dota 2 beta\game\dota\replays\3091214026.dem"
+ curl localhost:5600 --data-binary "@C:\Program Files (x86)\Steam\steamapps\common\dota 2 beta\game\dota\replays\2633691416_1609657691.dem"
