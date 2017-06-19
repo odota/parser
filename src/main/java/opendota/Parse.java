@@ -540,8 +540,7 @@ public class Parse {
                             name_to_slot.put(combatLogName2, entry.slot);
 
                             entry.hero_inventory = getHeroInventory(ctx, e);
-                            entry.hero_inventory = getHeroInventory(ctx, e);
-                            if (entry.hero_inventory != null && !isPlayerStartingItemsWritten.get(entry.slot)) {
+                            if (!isPlayerStartingItemsWritten.get(entry.slot)) {
                                 // Making something similar to DOTA_COMBATLOG_PURCHASE for each item in the beginning of the game
                                 isPlayerStartingItemsWritten.set(entry.slot, true);
                                 for (Item item : entry.hero_inventory) {
