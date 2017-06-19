@@ -148,7 +148,7 @@ public class Parse {
     	
       is = input;
       os = output;
-      isPlayerStartingItemsWritten = new ArrayList<>(Arrays.asList(new Boolean[10]));
+      isPlayerStartingItemsWritten = new ArrayList<>(Arrays.asList(new Boolean[numPlayers]));
       Collections.fill(isPlayerStartingItemsWritten, Boolean.FALSE);
       long tStart = System.currentTimeMillis();
       new SimpleRunner(new InputStreamSource(is)).runWith(this);
