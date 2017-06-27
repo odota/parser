@@ -212,7 +212,7 @@ public class Parse {
         //Entity h = ctx.getProcessor(Entities.class).getByHandle(handle);
         //System.err.println(h.getDtClass().getDtName());
         //break actions into types?
-
+	entry.key = String.valueOf(message.getOrderType());
         //System.err.println(message);
         output(entry);
     }
