@@ -4,3 +4,5 @@ dependency-reduced-pom.xml
 .classpath
 .project
 *.log
+*.dem
+*.bz2

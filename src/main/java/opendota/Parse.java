@@ -22,6 +22,7 @@ import skadistats.clarity.source.InputStreamSource;
 import skadistats.clarity.wire.common.proto.Demo.CDemoFileInfo;
 import skadistats.clarity.wire.common.proto.DotaUserMessages;
 import skadistats.clarity.wire.common.proto.DotaUserMessages.CDOTAUserMsg_ChatEvent;
+import skadistats.clarity.wire.common.proto.DotaUserMessages.CDOTAUserMsg_ChatWheel;
 import skadistats.clarity.wire.common.proto.DotaUserMessages.CDOTAUserMsg_LocationPing;
 import skadistats.clarity.wire.common.proto.DotaUserMessages.CDOTAUserMsg_SpectatorPlayerUnitOrders;
 import skadistats.clarity.wire.common.proto.DotaUserMessages.DOTA_COMBATLOG_TYPES;
@@ -212,7 +213,7 @@ public class Parse {
         //Entity h = ctx.getProcessor(Entities.class).getByHandle(handle);
         //System.err.println(h.getDtClass().getDtName());
         //break actions into types?
-	entry.key = String.valueOf(message.getOrderType());
+        entry.key = String.valueOf(message.getOrderType());
         //System.err.println(message);
         output(entry);
     }
@@ -251,6 +252,15 @@ public class Parse {
         entry.player2 = player2;
         entry.value = value;
         output(entry);
+    }
+    
+    @OnMessage(CDOTAUserMsg_ChatWheel.class)
+    public void onChatWheel(Context ctx, CDOTAUserMsg_ChatWheel message) {
+    	Entry entry = new Entry(time);
+    	entry.type = "chatwheel";
+    	entry.slot = message.getPlayerId();
+    	entry.key = String.valueOf(message.getChatMessageId());
+    	output(entry);
     }
 
     @OnMessage(CUserMsg_SayText2.class)
