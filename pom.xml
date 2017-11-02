@@ -50,10 +50,9 @@
         <dependency>
             <groupId>com.github.skadistats</groupId>
             <artifactId>clarity</artifactId>
-            <version>70956f5a89fca56f3a292e739ea3eda96a33fd8c</version>
+            <version>0d6fb64f8e93733752e57fa0ec2b0b72dd859d96</version>
         </dependency>
 -->
-        
         <dependency>
             <groupId>com.skadistats</groupId>
             <artifactId>clarity</artifactId>
