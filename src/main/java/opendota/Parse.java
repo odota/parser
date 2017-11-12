@@ -104,6 +104,16 @@ public class Parse {
 		public Integer towers_killed;
 		public Integer roshans_killed;
 		public Integer observers_placed;
+        public Integer PicksAndBans;
+        public Integer PicksAndBansOrder;
+        public String PickorBan;
+        public Integer PicksAndBansActiveTeam;
+        public Double PicksAndBansTime;
+        public Double PicksAndBansExTime0;
+        public Double PicksAndBansExTime1;
+
+
+
 		
 		public Entry() {
 		}
@@ -146,7 +156,20 @@ public class Parse {
 	private GreevilsGreedVisitor greevilsGreedVisitor;
 	private TrackVisitor trackVisitor;
     private ArrayList<Boolean> isPlayerStartingItemsWritten;
-    
+
+    //Draft stage variable
+    Integer draftstage = 0;
+    int[] PicksAndBans = new int[20];
+    int[] PicksAndBansOrder = new int[20];
+    int[] PicksAndBansActiveTeam =  new int[20];
+    double[] PicksAndBansTime = new double[20];
+    double[] PicksAndBansExTime0 = new double[20];
+    double[] PicksAndBansExTime1 = new double[20];
+
+    int order = 1;
+
+
+
     public Parse(InputStream input, OutputStream output) throws IOException
     {
       greevilsGreedVisitor = new GreevilsGreedVisitor(name_to_slot);
@@ -415,13 +438,81 @@ public class Parse {
         Entity dData = ctx.getProcessor(Entities.class).getByDtName("CDOTA_DataDire");
         Entity rData = ctx.getProcessor(Entities.class).getByDtName("CDOTA_DataRadiant");
 
+        // Create draftstage variable
+        draftstage = getEntityProperty(grp, "m_pGameRules.m_nGameState", null);
+
         if (grp != null) 
         {
             //System.err.println(grp);
             //dota_gamerules_data.m_iGameMode = 22
             //dota_gamerules_data.m_unMatchID64 = 1193091757
             time = Math.round((float) getEntityProperty(grp, "m_pGameRules.m_fGameTime", null));
-            
+
+            //draft timings
+            if(draftstage == 2) {
+
+                //Picks and ban are not in order due to draft change rules changes between patches
+
+                // Need to listen for the picks and ban to change
+
+                PicksAndBans[0] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0000", null);
+                PicksAndBans[1] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0001", null);
+                PicksAndBans[2] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0002", null);
+                PicksAndBans[3] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0003", null);
+                PicksAndBans[4] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0004", null);
+                PicksAndBans[5] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0005", null);
+                PicksAndBans[6] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0006", null);
+                PicksAndBans[7] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0007", null);
+                PicksAndBans[8] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0008", null);
+                PicksAndBans[9] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0009", null);
+                PicksAndBans[10] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0000", null);
+                PicksAndBans[11] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0001", null);
+                PicksAndBans[12] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0002", null);
+                PicksAndBans[13] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0003", null);
+                PicksAndBans[14] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0004", null);
+                PicksAndBans[15] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0005", null);
+                PicksAndBans[16] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0006", null);
+                PicksAndBans[17] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0007", null);
+                PicksAndBans[18] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0008", null);
+                PicksAndBans[19] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0009", null);
+
+                //Once a pick or ban happens grab the time and extra time remaining for both teams
+                for(int i =0; i < 20; i++) {
+
+                    if(PicksAndBans[i] > 0 && PicksAndBansTime[i] ==  0) {
+
+                        PicksAndBansOrder[i] = order;
+                        PicksAndBansActiveTeam[i] = getEntityProperty(grp, "m_pGameRules.m_iActiveTeam", null);
+
+
+                        PicksAndBansTime[i] = Math.round((float) getEntityProperty(grp, "m_pGameRules.m_fGameTime", null));
+                        PicksAndBansExTime0[i] = Math.round((float) getEntityProperty(grp, "m_pGameRules.m_fExtraTimeRemaining.0000", null));
+                        PicksAndBansExTime1[i] = Math.round((float) getEntityProperty(grp, "m_pGameRules.m_fExtraTimeRemaining.0001", null));
+
+                        order = order + 1;
+
+                        Entry PicksAndBansEntry = new Entry(time);
+
+                        PicksAndBansEntry.type = "PicksAndBans";
+
+
+                        PicksAndBansEntry.PicksAndBansTime = PicksAndBansTime[i];
+                        PicksAndBansEntry.PicksAndBansOrder = PicksAndBansOrder[i];
+                        PicksAndBansEntry.PickorBan = i < 10 ? "ban" : "pick";
+                        PicksAndBansEntry.PicksAndBans = PicksAndBans[i];
+                        PicksAndBansEntry.PicksAndBansActiveTeam = PicksAndBansActiveTeam[i];
+                        PicksAndBansEntry.PicksAndBansExTime0 = PicksAndBansExTime0[i];
+                        PicksAndBansEntry.PicksAndBansExTime1 = PicksAndBansExTime1[i];
+                        output(PicksAndBansEntry);
+
+                    }
+
+                }
+
+            }
+
+
+
             //initialize nextInterval value
             if (nextInterval == 0)
             {
