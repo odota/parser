@@ -104,11 +104,11 @@ public class Parse {
 		public Integer towers_killed;
 		public Integer roshans_killed;
 		public Integer observers_placed;
-        public Integer draft_order;
-        public Boolean pick;
-        public Integer draft_active_team;
-        public Integer draft_extime0;
-        public Integer draft_extime1;
+        	public Integer draft_order;
+        	public Boolean pick;
+        	public Integer draft_active_team;
+        	public Integer draft_extime0;
+        	public Integer draft_extime1;
 
 		public Entry() {
 		}
