@@ -153,9 +153,8 @@ public class Parse {
     private ArrayList<Boolean> isPlayerStartingItemsWritten;
 
     //Draft stage variable
-    Integer draftStage = 0;
-    int[] draftHeroes = new int[22];
-    int[] draftTime = new int[22];
+
+    boolean[] draftOrderProcessed = new boolean[22];
     int order = 1;
 
 
@@ -429,7 +428,7 @@ public class Parse {
         Entity rData = ctx.getProcessor(Entities.class).getByDtName("CDOTA_DataRadiant");
 
         // Create draftStage variable
-        draftStage = getEntityProperty(grp, "m_pGameRules.m_nGameState", null);
+        Integer draftStage = getEntityProperty(grp, "m_pGameRules.m_nGameState", null);
 
         if (grp != null) 
         {
@@ -441,6 +440,7 @@ public class Parse {
             if(draftStage == 2) {
                 //Picks and ban are not in order due to draft change rules changes between patches
                 // Need to listen for the picks and ban to change
+                int[] draftHeroes = new int[22];
                 draftHeroes[0] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0000", null);
                 draftHeroes[1] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0001", null);
                 draftHeroes[2] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0002", null);
@@ -465,10 +465,10 @@ public class Parse {
                 draftHeroes[20] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0008", null);
                 draftHeroes[21] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0009", null);
                 //Once a pick or ban happens grab the time and extra time remaining for both teams
-                for(int i = 0; i < 22; i++) {
-                    if(draftHeroes[i] > 0 && draftTime[i] ==  0) {
+                for(int i = 0; i < draftHeroes.length; i++) {
+                    if(draftHeroes[i] > 0 && draftOrderProcessed[i] ==  false) {
                         // used to check for new bans and picks
-                        draftTime[i] = Math.round((float) getEntityProperty(grp, "m_pGameRules.m_fGameTime", null));
+                        draftOrderProcessed[i] = true;
                         Entry draftTimingsEntry = new Entry(time);
                         draftTimingsEntry.type = "draft_timings";
                         draftTimingsEntry.draft_order = order;
