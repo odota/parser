@@ -104,7 +104,12 @@ public class Parse {
 		public Integer towers_killed;
 		public Integer roshans_killed;
 		public Integer observers_placed;
-		
+        	public Integer draft_order;
+        	public Boolean pick;
+        	public Integer draft_active_team;
+        	public Integer draft_extime0;
+        	public Integer draft_extime1;
+
 		public Entry() {
 		}
 		
@@ -146,7 +151,14 @@ public class Parse {
 	private GreevilsGreedVisitor greevilsGreedVisitor;
 	private TrackVisitor trackVisitor;
     private ArrayList<Boolean> isPlayerStartingItemsWritten;
-    
+
+    //Draft stage variable
+
+    boolean[] draftOrderProcessed = new boolean[22];
+    int order = 1;
+
+
+
     public Parse(InputStream input, OutputStream output) throws IOException
     {
       greevilsGreedVisitor = new GreevilsGreedVisitor(name_to_slot);
@@ -415,13 +427,61 @@ public class Parse {
         Entity dData = ctx.getProcessor(Entities.class).getByDtName("CDOTA_DataDire");
         Entity rData = ctx.getProcessor(Entities.class).getByDtName("CDOTA_DataRadiant");
 
+        // Create draftStage variable
+        Integer draftStage = getEntityProperty(grp, "m_pGameRules.m_nGameState", null);
+
         if (grp != null) 
         {
             //System.err.println(grp);
             //dota_gamerules_data.m_iGameMode = 22
             //dota_gamerules_data.m_unMatchID64 = 1193091757
             time = Math.round((float) getEntityProperty(grp, "m_pGameRules.m_fGameTime", null));
-            
+            //draft timings
+            if(draftStage == 2) {
+                //Picks and ban are not in order due to draft change rules changes between patches
+                // Need to listen for the picks and ban to change
+                int[] draftHeroes = new int[22];
+                draftHeroes[0] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0000", null);
+                draftHeroes[1] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0001", null);
+                draftHeroes[2] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0002", null);
+                draftHeroes[3] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0003", null);
+                draftHeroes[4] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0004", null);
+                draftHeroes[5] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0005", null);
+                draftHeroes[6] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0006", null);
+                draftHeroes[7] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0007", null);
+                draftHeroes[8] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0008", null);
+                draftHeroes[9] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0009", null);
+                // Apparently Drafts go to 6 bans now, but have returns of null
+                draftHeroes[10] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0010", null) == null ? 0 : getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0010", null);
+                draftHeroes[11] = getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0011", null) == null ? 0 : getEntityProperty(grp, "m_pGameRules.m_BannedHeroes.0011", null);
+                draftHeroes[12] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0000", null);
+                draftHeroes[13] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0001", null);
+                draftHeroes[14] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0002", null);
+                draftHeroes[15] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0003", null);
+                draftHeroes[16] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0004", null);
+                draftHeroes[17] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0005", null);
+                draftHeroes[18] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0006", null);
+                draftHeroes[19] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0007", null);
+                draftHeroes[20] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0008", null);
+                draftHeroes[21] = getEntityProperty(grp, "m_pGameRules.m_SelectedHeroes.0009", null);
+                //Once a pick or ban happens grab the time and extra time remaining for both teams
+                for(int i = 0; i < draftHeroes.length; i++) {
+                    if(draftHeroes[i] > 0 && draftOrderProcessed[i] ==  false) {
+                        // used to check for new bans and picks
+                        draftOrderProcessed[i] = true;
+                        Entry draftTimingsEntry = new Entry(time);
+                        draftTimingsEntry.type = "draft_timings";
+                        draftTimingsEntry.draft_order = order;
+                        order = order + 1;
+                        draftTimingsEntry.pick = i < 12 ? false : true;
+                        draftTimingsEntry.hero_id = draftHeroes[i];
+                        draftTimingsEntry.draft_active_team = getEntityProperty(grp, "m_pGameRules.m_iActiveTeam", null);
+                        draftTimingsEntry.draft_extime0 = Math.round((float) getEntityProperty(grp, "m_pGameRules.m_fExtraTimeRemaining.0000", null));
+                        draftTimingsEntry.draft_extime1 = Math.round((float) getEntityProperty(grp, "m_pGameRules.m_fExtraTimeRemaining.0001", null));
+                        output(draftTimingsEntry);
+                    }
+                }
+            }
             //initialize nextInterval value
             if (nextInterval == 0)
             {
