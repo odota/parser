@@ -141,6 +141,7 @@ public class Parse {
     int[] validIndices = new int[numPlayers];
     boolean init = false;
     int gameStartTime = 0;
+    boolean postGame = false; // true when ancient destroyed
     private Gson g = new Gson();
     HashMap<String, Integer> name_to_slot = new HashMap<String, Integer>();
     HashMap<Integer, Integer> slot_to_playerslot = new HashMap<Integer, Integer>();
@@ -362,6 +363,9 @@ public class Parse {
             	combatLogEntry.tracked_death = trackStatus.tracked;
             	combatLogEntry.tracked_sourcename = trackStatus.inflictor;
             }
+            if (combatLogEntry.type.equals("DOTA_COMBATLOG_GAME_STATE") && combatLogEntry.value == 6) {
+                postGame = true;
+            }
 
             output(combatLogEntry);
             
@@ -543,7 +547,7 @@ public class Parse {
                 init = true;
             }
 
-            if (time >= nextInterval) 
+            if (time >= nextInterval && postGame == false)
             {
                 //System.err.println(pr);
                 for (int i = 0; i < numPlayers; i++) 
