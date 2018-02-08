@@ -146,6 +146,7 @@ public class Parse {
     HashMap<Integer, Integer> slot_to_playerslot = new HashMap<Integer, Integer>();
     HashMap<Long, Integer> steamid_to_playerslot = new HashMap<Long, Integer>();
 	HashMap<Integer, Integer> cosmeticsMap = new HashMap<Integer, Integer>();
+    HashMap<Integer, Integer> ward_ehandle_to_slot = new HashMap<Integer, Integer>();
     InputStream is = null;
     OutputStream os = null;
 	private GreevilsGreedVisitor greevilsGreedVisitor;
@@ -744,7 +745,10 @@ public class Parse {
             //System.err.println(entry.key);
             Integer owner = getEntityProperty(e, "m_hOwnerEntity", null);
             Entity ownerEntity = ctx.getProcessor(Entities.class).getByHandle(owner);
-            entry.slot = ownerEntity != null ? (Integer) getEntityProperty(ownerEntity, "m_iPlayerID", null) : null;
+            entry.slot = ownerEntity != null ? (Integer) getEntityProperty(ownerEntity, "m_iPlayerID", null) : ward_ehandle_to_slot.get(entry.ehandle);
+            if (entry.slot != null && !ward_ehandle_to_slot.containsKey(entry.ehandle)) {
+                ward_ehandle_to_slot.put(entry.ehandle, entry.slot);
+            }
             //2/3 radiant/dire
             //entry.team = e.getProperty("m_iTeamNum");
             output(entry);
