@@ -547,7 +547,7 @@ public class Parse {
                 init = true;
             }
 
-            if (time >= nextInterval && postGame == false)
+            if (postGame == false && time >= nextInterval)
             {
                 //System.err.println(pr);
                 for (int i = 0; i < numPlayers; i++) 
