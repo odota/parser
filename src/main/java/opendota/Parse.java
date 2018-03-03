@@ -155,6 +155,7 @@ public class Parse {
     private ArrayList<Boolean> isPlayerStartingItemsWritten;
     private int obsClassId = -1;
     private int senClassId = -1;
+    private long nanoCount = 0;
 
     //Draft stage variable
 
@@ -726,18 +727,22 @@ public class Parse {
         //s1 "DT_DOTA_NPC_Observer_Ward"
         //s1 "DT_DOTA_NPC_Observer_Ward_TrueSight"
     	
-    	// Cache the class IDs in a dictionary to avoid repeated string comparisons
-    	String entityName = e.getDtClass().getDtName();
+    	// Cache the class IDs to avoid repeated string comparisons
     	int entityClassId = e.getDtClass().getClassId();
-    	if (obsClassId == -1 && entityName.equals("CDOTA_NPC_Observer_Ward")) {
+    	if (obsClassId == -1 && e.getDtClass().getDtName().equals("CDOTA_NPC_Observer_Ward")) {
     		obsClassId = entityClassId;
     	}
-    	else if (senClassId == -1 && entityName.equals("CDOTA_NPC_Observer_Ward_TrueSight")) {
+    	else if (senClassId == -1 && e.getDtClass().getDtName().equals("CDOTA_NPC_Observer_Ward_TrueSight")) {
     		senClassId = entityClassId;
     	}
     	
+    	long start = System.nanoTime();
         boolean isObserver = entityClassId == obsClassId;
         boolean isSentry = entityClassId == senClassId;
+        long end = System.nanoTime();
+        nanoCount += (end - start);
+        System.err.println(nanoCount);
+        
         if (isObserver || isSentry) {
             //System.err.println(e);
             Entry entry = new Entry(time);
