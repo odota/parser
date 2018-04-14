@@ -53,12 +53,18 @@
             <version>0d6fb64f8e93733752e57fa0ec2b0b72dd859d96</version>
         </dependency>
 -->
+<!--
         <dependency>
             <groupId>com.skadistats</groupId>
             <artifactId>clarity</artifactId>
             <version>2.2-SNAPSHOT</version>
         </dependency>
-        
+-->
+        <dependency>
+            <groupId>com.github.odota</groupId>
+            <artifactId>clarity</artifactId>
+            <version>master-SNAPSHOT</version>
+        </dependency>
         <dependency>
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
