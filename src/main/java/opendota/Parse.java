@@ -104,11 +104,11 @@ public class Parse {
 		public Integer towers_killed;
 		public Integer roshans_killed;
 		public Integer observers_placed;
-        	public Integer draft_order;
-        	public Boolean pick;
-        	public Integer draft_active_team;
-        	public Integer draft_extime0;
-        	public Integer draft_extime1;
+        public Integer draft_order;
+        public Boolean pick;
+        public Integer draft_active_team;
+        public Integer draft_extime0;
+        public Integer draft_extime1;
 
 		public Entry() {
 		}
@@ -153,6 +153,9 @@ public class Parse {
 	private GreevilsGreedVisitor greevilsGreedVisitor;
 	private TrackVisitor trackVisitor;
     private ArrayList<Boolean> isPlayerStartingItemsWritten;
+    private int obsClassId = -1;
+    private int senClassId = -1;
+    private long nanoCount = 0;
 
     //Draft stage variable
 
@@ -723,8 +726,23 @@ public class Parse {
         //CDOTA_NPC_Observer_Ward_TrueSight
         //s1 "DT_DOTA_NPC_Observer_Ward"
         //s1 "DT_DOTA_NPC_Observer_Ward_TrueSight"
-        boolean isObserver = e.getDtClass().getDtName().equals("CDOTA_NPC_Observer_Ward");
-        boolean isSentry = e.getDtClass().getDtName().equals("CDOTA_NPC_Observer_Ward_TrueSight");
+    	
+    	// Cache the class IDs to avoid repeated string comparisons
+    	int entityClassId = e.getDtClass().getClassId();
+    	if (obsClassId == -1 && e.getDtClass().getDtName().equals("CDOTA_NPC_Observer_Ward")) {
+    		obsClassId = entityClassId;
+    	}
+    	else if (senClassId == -1 && e.getDtClass().getDtName().equals("CDOTA_NPC_Observer_Ward_TrueSight")) {
+    		senClassId = entityClassId;
+    	}
+    	
+    	long start = System.nanoTime();
+        boolean isObserver = entityClassId == obsClassId;
+        boolean isSentry = entityClassId == senClassId;
+        long end = System.nanoTime();
+        nanoCount += (end - start);
+        System.err.println(nanoCount);
+        
         if (isObserver || isSentry) {
             //System.err.println(e);
             Entry entry = new Entry(time);
