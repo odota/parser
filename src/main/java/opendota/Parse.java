@@ -368,10 +368,6 @@ public class Parse {
             }
 
             output(combatLogEntry);
-            
-            if (cle.getType().ordinal() > 19) {
-                System.err.println(cle);
-            }
         }
         catch(Exception e)
         {
