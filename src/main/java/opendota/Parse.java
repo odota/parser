@@ -366,8 +366,9 @@ public class Parse {
             if (combatLogEntry.type.equals("DOTA_COMBATLOG_GAME_STATE") && combatLogEntry.value == 6) {
                 postGame = true;
             }
-
-            output(combatLogEntry);
+            if (cle.getType().ordinal() <= 19) {	
+                output(combatLogEntry);
+	    }
         }
         catch(Exception e)
         {
@@ -635,9 +636,7 @@ public class Parse {
                             }
                         }
                     }
-		    if (cle.getType().ordinal() <= 19) {	
-                        output(entry);
-		    }
+                    output(entry);
                 }
                 nextInterval += INTERVAL;
             }
