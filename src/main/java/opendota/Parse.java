@@ -635,7 +635,9 @@ public class Parse {
                             }
                         }
                     }
-                    output(entry);
+		    if (cle.getType().ordinal() <= 19) {	
+                        output(entry);
+		    }
                 }
                 nextInterval += INTERVAL;
             }
