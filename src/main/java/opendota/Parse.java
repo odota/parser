@@ -234,7 +234,7 @@ public class Parse {
         pingCount += 1;
         if (pingCount > 10000) {
             return;
-	}
+        }
 
         Entry entry = new Entry(time);
         entry.type = "pings";
