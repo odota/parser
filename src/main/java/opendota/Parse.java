@@ -150,16 +150,14 @@ public class Parse {
     HashMap<Integer, Integer> ward_ehandle_to_slot = new HashMap<Integer, Integer>();
     InputStream is = null;
     OutputStream os = null;
-	private GreevilsGreedVisitor greevilsGreedVisitor;
-	private TrackVisitor trackVisitor;
+    private GreevilsGreedVisitor greevilsGreedVisitor;
+    private TrackVisitor trackVisitor;
     private ArrayList<Boolean> isPlayerStartingItemsWritten;
+    int pingCount = 0;
 
     //Draft stage variable
-
     boolean[] draftOrderProcessed = new boolean[22];
     int order = 1;
-
-
 
     public Parse(InputStream input, OutputStream output) throws IOException
     {
@@ -176,7 +174,6 @@ public class Parse {
       System.err.format("total time taken: %s\n", (tMatch) / 1000.0);
     }
     
-
     public void output(Entry e) {
         try {
             this.os.write((g.toJson(e) + "\n").getBytes()); 
@@ -232,9 +229,13 @@ public class Parse {
         output(entry);
     }
 
-
     @OnMessage(CDOTAUserMsg_LocationPing.class)
     public void onPlayerPing(Context ctx, CDOTAUserMsg_LocationPing message) {
+        pingCount += 1;
+        if (pingCount > 10000) {
+            return;
+        }
+
         Entry entry = new Entry(time);
         entry.type = "pings";
         entry.slot = message.getPlayerId();
