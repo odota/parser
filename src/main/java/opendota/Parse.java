@@ -42,7 +42,7 @@ import opendota.combatlogvisitors.TrackVisitor.TrackStatus;
 public class Parse {
 
 	public class Entry {
-		public Integer time;
+		public Integer time = 0;
 		public String type;
 		public Integer team;
 		public String unit;
@@ -104,11 +104,11 @@ public class Parse {
 		public Integer towers_killed;
 		public Integer roshans_killed;
 		public Integer observers_placed;
-        	public Integer draft_order;
-        	public Boolean pick;
-        	public Integer draft_active_team;
-        	public Integer draft_extime0;
-        	public Integer draft_extime1;
+        public Integer draft_order;
+        public Boolean pick;
+        public Integer draft_active_team;
+        public Integer draft_extime0;
+        public Integer draft_extime1;
 
 		public Entry() {
 		}
@@ -154,6 +154,7 @@ public class Parse {
     private TrackVisitor trackVisitor;
     private ArrayList<Boolean> isPlayerStartingItemsWritten;
     int pingCount = 0;
+    private ArrayList<Entry> logBuffer = new ArrayList<Entry>();
 
     //Draft stage variable
     boolean[] draftOrderProcessed = new boolean[22];
@@ -176,12 +177,24 @@ public class Parse {
     
     public void output(Entry e) {
         try {
-            this.os.write((g.toJson(e) + "\n").getBytes()); 
+            if (gameStartTime == 0) {
+                logBuffer.add(e);
+            } else {
+                e.time -= gameStartTime;
+                this.os.write((g.toJson(e) + "\n").getBytes());
+            }
         }
         catch (IOException ex)
         {
             System.err.println(ex);
         }
+    }
+
+    public void flushLogBuffer() {
+        for (Entry e : logBuffer) {
+            output(e);
+        }
+        logBuffer = null;
     }
     
     //@OnMessage(GeneratedMessage.class)
@@ -367,6 +380,14 @@ public class Parse {
             if (combatLogEntry.type.equals("DOTA_COMBATLOG_GAME_STATE") && combatLogEntry.value == 6) {
                 postGame = true;
             }
+            if (combatLogEntry.type.equals("DOTA_COMBATLOG_GAME_STATE") && combatLogEntry.value == 3) {
+                //alternate to combat log for getting game zero time (looks like this is set at the same time as the game start, so it's not any better for streaming)
+                // int currGameStartTime = Math.round( (float) grp.getProperty("m_pGameRules.m_flGameStartTime"));
+                if (gameStartTime == 0) {
+                    gameStartTime = combatLogEntry.time;
+                    flushLogBuffer();
+                }
+            }
             if (cle.getType().ordinal() <= 19) {	
                 output(combatLogEntry);
 	    }
@@ -490,15 +511,6 @@ public class Parse {
             {
                 nextInterval = time;
             }
-            //alternate to combat log for getting game zero time (looks like this is set at the same time as the game start, so it's not any better for streaming)
-            /*
-            int currGameStartTime = Math.round( (float) grp.getProperty("m_pGameRules.m_flGameStartTime"));
-            if (currGameStartTime != gameStartTime){
-                gameStartTime = currGameStartTime;
-                System.err.println(gameStartTime);
-                System.err.println(time);
-            }
-            */
         }
         if (pr != null) 
         {
