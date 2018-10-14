@@ -1,4 +1,4 @@
-package yasp.processors.warding;
+package opendota.processors.warding;
 
 import java.lang.annotation.Annotation;
 
@@ -13,7 +13,7 @@ import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target(value = ElementType.METHOD)
-@UsagePointMarker(value = UsagePointType.EVENT_LISTENER, parameterClasses = { Entity.class })
-public @interface OnWardPlaced { 
+@UsagePointMarker(value = UsagePointType.EVENT_LISTENER, parameterClasses = { Entity.class, String.class })
+public @interface OnWardKilled { 
 }
 

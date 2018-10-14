@@ -1,4 +1,4 @@
-package yasp.processors.warding;
+package opendota.processors.warding;
 
 import java.lang.annotation.Annotation;
 

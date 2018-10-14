@@ -1,4 +1,4 @@
-package yasp.processors.warding;
+package opendota.processors.warding;
 
 import java.util.ArrayDeque;
 import java.util.Collections;

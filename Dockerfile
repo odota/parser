@@ -12,6 +12,4 @@ WORKDIR /usr/src/parser
 ADD . /usr/src/parser
 RUN mvn -q -f /usr/src/parser/pom.xml clean install -U
 
-EXPOSE 5600
-
 CMD ["java", "-jar", "-Xmx256m", "/usr/src/parser/target/stats-0.1.0.jar", "5600"]
