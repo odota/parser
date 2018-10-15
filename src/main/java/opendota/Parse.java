@@ -380,7 +380,7 @@ public class Parse {
             if (combatLogEntry.type.equals("DOTA_COMBATLOG_GAME_STATE") && combatLogEntry.value == 6) {
                 postGame = true;
             }
-            if (combatLogEntry.type.equals("DOTA_COMBATLOG_GAME_STATE") && combatLogEntry.value == 3) {
+            if (combatLogEntry.type.equals("DOTA_COMBATLOG_GAME_STATE") && combatLogEntry.value == 5) {
                 //alternate to combat log for getting game zero time (looks like this is set at the same time as the game start, so it's not any better for streaming)
                 // int currGameStartTime = Math.round( (float) grp.getProperty("m_pGameRules.m_flGameStartTime"));
                 if (gameStartTime == 0) {
