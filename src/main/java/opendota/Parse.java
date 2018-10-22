@@ -38,9 +38,6 @@ import java.io.OutputStream;
 import opendota.combatlogvisitors.TrackVisitor;
 import opendota.combatlogvisitors.GreevilsGreedVisitor;
 import opendota.combatlogvisitors.TrackVisitor.TrackStatus;
-import opendota.processors.warding.OnWardExpired;
-import opendota.processors.warding.OnWardKilled;
-import opendota.processors.warding.OnWardPlaced;
 
 public class Parse {
 
@@ -404,6 +401,7 @@ public class Parse {
 
     @OnEntityEntered
     public void onEntityEntered(Context ctx, Entity e) {
+        processEntity(ctx, e, false);
         if (e.getDtClass().getDtName().equals("CDOTAWearableItem")) {
         	Integer accountId = getEntityProperty(e, "m_iAccountID", null);
         	Integer itemDefinitionIndex = getEntityProperty(e, "m_iItemDefinitionIndex", null);
@@ -419,6 +417,11 @@ public class Parse {
         		cosmeticsMap.put(itemDefinitionIndex, playerSlot);
         	}
         }
+    }
+    
+    @OnEntityLeft
+    public void onEntityLeft(Context ctx, Entity e) {
+        processEntity(ctx, e, true);
     }
 
     @UsesStringTable("EntityNames")
@@ -724,43 +727,45 @@ public class Parse {
     	}
     }
     
-    @OnWardKilled 
-    public void onWardKilled(Context ctx, Entity e, String killerHeroName) { 
-        Entry wardEntry = buildWardEntry(ctx, e); 
-        wardEntry.attackername = killerHeroName; 
-        output(wardEntry); 
-    } 
-     
-    @OnWardExpired 
-    @OnWardPlaced 
-    public void onWardExistenceChanged(Context ctx, Entity e) { 
-        output(buildWardEntry(ctx, e)); 
-    } 
- 
-    private Entry buildWardEntry(Context ctx, Entity e) { 
-        Entry entry = new Entry(time); 
-            boolean isObserver = !e.getDtClass().getDtName().contains("TrueSight"); 
-        Integer x = getEntityProperty(e, "CBodyComponent.m_cellX", null); 
-        Integer y = getEntityProperty(e, "CBodyComponent.m_cellY", null); 
-        Integer z = getEntityProperty(e, "CBodyComponent.m_cellZ", null); 
-        Integer life_state = getEntityProperty(e, "m_lifeState", null); 
-        Integer[] pos = {x, y}; 
-        entry.x = x; 
-        entry.y = y; 
-        entry.z = z; 
-        entry.type = isObserver ? "obs" : "sen"; 
-        entry.entityleft = life_state == 1; 
-        entry.key = Arrays.toString(pos); 
-        entry.ehandle = e.getHandle(); 
-     
-        if (entry.entityleft) { 
-            entry.type += "_left"; 
+    public void processEntity(Context ctx, Entity e, boolean entityLeft)
+    {
+        //CDOTA_NPC_Observer_Ward
+        //CDOTA_NPC_Observer_Ward_TrueSight
+        //s1 "DT_DOTA_NPC_Observer_Ward"
+        //s1 "DT_DOTA_NPC_Observer_Ward_TrueSight"
+        boolean isObserver = e.getDtClass().getDtName().equals("CDOTA_NPC_Observer_Ward");
+        boolean isSentry = e.getDtClass().getDtName().equals("CDOTA_NPC_Observer_Ward_TrueSight");
+        if (isObserver || isSentry) {
+            //System.err.println(e);
+            Entry entry = new Entry(time);
+            Integer x = getEntityProperty(e, "CBodyComponent.m_cellX", null);
+            Integer y = getEntityProperty(e, "CBodyComponent.m_cellY", null);
+            Integer z = getEntityProperty(e, "CBodyComponent.m_cellZ", null);
+            Integer[] pos = {x, y};
+            entry.x = x;
+            entry.y = y;
+            entry.z = z;
+            if (entityLeft)
+            {
+                entry.type = isObserver ? "obs_left" : "sen_left";
+            }
+            else
+            {
+                entry.type = isObserver ? "obs" : "sen";
+            }
+            entry.key = Arrays.toString(pos);
+            entry.entityleft = entityLeft;
+            entry.ehandle = e.getHandle();
+            //System.err.println(entry.key);
+            Integer owner = getEntityProperty(e, "m_hOwnerEntity", null);
+            Entity ownerEntity = ctx.getProcessor(Entities.class).getByHandle(owner);
+            entry.slot = ownerEntity != null ? (Integer) getEntityProperty(ownerEntity, "m_iPlayerID", null) : ward_ehandle_to_slot.get(entry.ehandle);
+            if (entry.slot != null && !ward_ehandle_to_slot.containsKey(entry.ehandle)) {
+                ward_ehandle_to_slot.put(entry.ehandle, entry.slot);
+            }
+            //2/3 radiant/dire
+            //entry.team = e.getProperty("m_iTeamNum");
+            output(entry);
         }
-        
-        Integer owner = getEntityProperty(e, "m_hOwnerEntity", null); 
-        Entity ownerEntity = ctx.getProcessor(Entities.class).getByHandle(owner); 
-        entry.slot = ownerEntity != null ? (Integer) getEntityProperty(ownerEntity, "m_iPlayerID", null) : null; 
-        
-        return entry; 
     }
 }
