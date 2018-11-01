@@ -82,10 +82,18 @@
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>opendota.Main</mainClass>
                                 </transformer>
+                                <transformer implementation="org.atteo.classindex.ClassIndexTransformer" /> 
                             </transformers>
                         </configuration>
                     </execution>
                 </executions>
+                <dependencies> 
+                    <dependency> 
+                        <groupId>org.atteo.classindex</groupId> 
+                        <artifactId>classindex-transformer</artifactId> 
+                        <version>3.4</version> 
+                    </dependency> 
+                </dependencies> 
             </plugin>
         </plugins>
     </build>
