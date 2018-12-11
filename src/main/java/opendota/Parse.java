@@ -630,7 +630,7 @@ public class Parse {
                             name_to_slot.put(combatLogName, entry.slot);
                             name_to_slot.put(combatLogName2, entry.slot);
 
-                            entry.hero_inventory = getHeroInventory(ctx, e);
+                            // entry.hero_inventory = getHeroInventory(ctx, e);
                             if (!isPlayerStartingItemsWritten.get(entry.slot) && entry.hero_inventory != null) {
                                 // Making something similar to DOTA_COMBATLOG_PURCHASE for each item in the beginning of the game
                                 isPlayerStartingItemsWritten.set(entry.slot, true);
@@ -657,13 +657,9 @@ public class Parse {
         List<Item> inventoryList = new ArrayList<>(6);
 
         for (int i = 0; i < 6; i++) {
-            try {
-                Item item = getHeroItem(ctx, eHero, i);
-                if(item != null) {
-                    inventoryList.add(item);
-                }
-            } catch (UnknownItemFoundException e) {
-                return null;
+            Item item = getHeroItem(ctx, eHero, i);
+            if(item != null) {
+                inventoryList.add(item);
             }
         }
 
