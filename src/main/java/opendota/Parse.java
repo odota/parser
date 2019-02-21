@@ -80,7 +80,7 @@ public class Parse {
 		public Integer z;
 		public Float stuns;
 		public Integer hero_id;
-		public transient List<Item> hero_inventory;
+		public transient List<Item> f;
 		public Integer life_state;
 		public Integer level;
 		public Integer kills;
@@ -630,7 +630,7 @@ public class Parse {
                             name_to_slot.put(combatLogName, entry.slot);
                             name_to_slot.put(combatLogName2, entry.slot);
 
-                            // entry.hero_inventory = getHeroInventory(ctx, e);
+                            entry.hero_inventory = getHeroInventory(ctx, e);
                             if (!isPlayerStartingItemsWritten.get(entry.slot) && entry.hero_inventory != null) {
                                 // Making something similar to DOTA_COMBATLOG_PURCHASE for each item in the beginning of the game
                                 isPlayerStartingItemsWritten.set(entry.slot, true);
