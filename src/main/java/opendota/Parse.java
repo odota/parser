@@ -465,7 +465,6 @@ public class Parse {
                 if(!draftStartHandled) {
                     Long iPlayerIDsInControl = getEntityProperty(grp, "m_pGameRules.m_iPlayerIDsInControl", null);
                     boolean draftStarted = iPlayerIDsInControl.compareTo(Long.valueOf(0)) != 0;
-                    // boolean draftStarted = new Int(getEntityProperty(grp, "m_pGameRules.m_iPlayerIDsInControl", null).toString()) > 0;     
                     if(draftStarted) {
                         Entry draftStartEntry = new Entry(time);
                         draftStartEntry.type = "draft_start";
