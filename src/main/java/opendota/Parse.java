@@ -162,7 +162,7 @@ public class Parse {
     //Draft stage variable
     boolean[] draftOrderProcessed = new boolean[22];
     int order = 1;
-    boolean draftStartHandled = false; //flag to know if draft start time is already handled
+    boolean draftStartTimeProcessed = false; //flag to know if draft start time is already handled
 
     public Parse(InputStream input, OutputStream output) throws IOException
     {
@@ -462,14 +462,14 @@ public class Parse {
             if(draftStage == 2) {
 
                 //determine the time the draftings start
-                if(!draftStartHandled) {
+                if(!draftStartTimeProcessed) {
                     Long iPlayerIDsInControl = getEntityProperty(grp, "m_pGameRules.m_iPlayerIDsInControl", null);
                     boolean draftStarted = iPlayerIDsInControl.compareTo(Long.valueOf(0)) != 0;
                     if(draftStarted) {
                         Entry draftStartEntry = new Entry(time);
                         draftStartEntry.type = "draft_start";
                         output(draftStartEntry);
-                        draftStartHandled = true;
+                        draftStartTimeProcessed = true;
                     }
                 }
 
