@@ -162,6 +162,7 @@ public class Parse {
     //Draft stage variable
     boolean[] draftOrderProcessed = new boolean[22];
     int order = 1;
+    boolean isDraftStartTimeProcessed = false; //flag to know if draft start time is already handled
 
     public Parse(InputStream input, OutputStream output) throws IOException
     {
@@ -459,6 +460,19 @@ public class Parse {
             time = Math.round((float) getEntityProperty(grp, "m_pGameRules.m_fGameTime", null));
             //draft timings
             if(draftStage == 2) {
+
+                //determine the time the draftings start
+                if(!isDraftStartTimeProcessed) {
+                    Long iPlayerIDsInControl = getEntityProperty(grp, "m_pGameRules.m_iPlayerIDsInControl", null);
+                    boolean isDraftStarted = iPlayerIDsInControl.compareTo(Long.valueOf(0)) != 0;
+                    if(isDraftStarted) {
+                        Entry draftStartEntry = new Entry(time);
+                        draftStartEntry.type = "draft_start";
+                        output(draftStartEntry);
+                        isDraftStartTimeProcessed = true;
+                    }
+                }
+
                 //Picks and ban are not in order due to draft change rules changes between patches
                 // Need to listen for the picks and ban to change
                 int[] draftHeroes = new int[22];
