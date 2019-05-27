@@ -671,9 +671,14 @@ public class Parse {
         List<Item> inventoryList = new ArrayList<>(6);
 
         for (int i = 0; i < 6; i++) {
-            Item item = getHeroItem(ctx, eHero, i);
-            if(item != null) {
-                inventoryList.add(item);
+            try {
+                Item item = getHeroItem(ctx, eHero, i);
+                if(item != null) {
+                    inventoryList.add(item);
+                }
+            }
+            catch (Exception e) {
+                System.error.println(e);
             }
         }
 
