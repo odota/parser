@@ -6,3 +6,6 @@ dependency-reduced-pom.xml
 *.log
 *.dem
 *.bz2
+/.idea/
+/.factorypath
+/stats.iml
