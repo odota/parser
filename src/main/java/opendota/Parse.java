@@ -143,6 +143,7 @@ public class Parse {
     int numPlayers = 10;
     int[] validIndices = new int[numPlayers];
     boolean init = false;
+    boolean done = false;
     int gameStartTime = 0;
     boolean postGame = false; // true when ancient destroyed
     private Gson g = new Gson();
@@ -150,6 +151,7 @@ public class Parse {
     HashMap<Integer, Integer> slot_to_playerslot = new HashMap<Integer, Integer>();
     HashMap<Long, Integer> steamid_to_playerslot = new HashMap<Long, Integer>();
 	HashMap<Integer, Integer> cosmeticsMap = new HashMap<Integer, Integer>();
+	HashMap<Long, Integer> dotapluslevelMap = new HashMap<Long, Integer>(); // steamId, level
     HashMap<Integer, Integer> ward_ehandle_to_slot = new HashMap<Integer, Integer>();
     InputStream is = null;
     OutputStream os = null;
@@ -329,7 +331,13 @@ public class Parse {
     	cosmeticsEntry.type = "cosmetics";
     	cosmeticsEntry.key = new Gson().toJson(cosmeticsMap);
     	output(cosmeticsEntry);
-        
+
+    	// Dota plus hero levels
+        Entry dotaPlusEntry = new Entry();
+        dotaPlusEntry.type = "dotaplus";
+        dotaPlusEntry.key = new Gson().toJson(dotapluslevelMap);
+        output(dotaPlusEntry);
+
         //emit epilogue event to mark finish
         Entry epilogueEntry = new Entry();
         epilogueEntry.type = "epilogue";
@@ -664,6 +672,17 @@ public class Parse {
                 }
                 nextInterval += INTERVAL;
             }
+
+            // When the game is over, get dota plus levels
+            if (postGame && !done) {
+                for (int i = 0; i < numPlayers; i++) {
+                    int xp = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_unSelectedHeroBadgeXP", i);
+                    int level = getDotaPlusLevel(xp);
+                    Long steamid = getEntityProperty(pr, "m_vecPlayerData.%i.m_iPlayerSteamID", i);
+                    dotapluslevelMap.put(steamid, level);
+                    done = true;
+                }
+            }
         }
     }
 
@@ -683,6 +702,19 @@ public class Parse {
         }
 
         return inventoryList;
+    }
+
+    private Integer getDotaPlusLevel(int xp) {
+        // https://dota2.gamepedia.com/Dota_Plus
+        int[] xpTable = {
+                50, 300, 400, 500, 600, 900, 1000, 1100, 1200, 1300, 1400, 1700, 1800, 1900, 2000, 2100, 2200, 2500, 2600, 2700, 2800, 2900, 3000, 3100, 6800
+        };
+        int level = 0;
+        while (xpTable[level] <= xp) {
+            xp = xp - xpTable[level];
+            level++;
+        }
+        return level;
     }
 
     /**
