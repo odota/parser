@@ -143,7 +143,6 @@ public class Parse {
     int numPlayers = 10;
     int[] validIndices = new int[numPlayers];
     boolean init = false;
-    boolean done = false;
     int gameStartTime = 0;
     boolean postGame = false; // true when ancient destroyed
     private Gson g = new Gson();
@@ -165,6 +164,8 @@ public class Parse {
     boolean[] draftOrderProcessed = new boolean[22];
     int order = 1;
     boolean isDraftStartTimeProcessed = false; //flag to know if draft start time is already handled
+
+    boolean isDotaPlusProcessed = false;
 
     public Parse(InputStream input, OutputStream output) throws IOException
     {
@@ -674,14 +675,14 @@ public class Parse {
             }
 
             // When the game is over, get dota plus levels
-            if (postGame && !done) {
+            if (postGame && !isDotaPlusProcessed) {
                 for (int i = 0; i < numPlayers; i++) {
                     int xp = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_unSelectedHeroBadgeXP", i);
                     int level = getDotaPlusLevel(xp);
                     Long steamid = getEntityProperty(pr, "m_vecPlayerData.%i.m_iPlayerSteamID", i);
                     dotapluslevelMap.put(steamid, level);
-                    done = true;
                 }
+                isDotaPlusProcessed = true;
             }
         }
     }
