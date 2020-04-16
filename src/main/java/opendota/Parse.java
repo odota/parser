@@ -710,7 +710,7 @@ public class Parse {
                 50, 300, 400, 500, 600, 900, 1000, 1100, 1200, 1300, 1400, 1700, 1800, 1900, 2000, 2100, 2200, 2500, 2600, 2700, 2800, 2900, 3000, 3100, 6800
         };
         int level = 0;
-        while (xpTable[level] <= xp) {
+        while (level <= 24 && xpTable[level] <= xp) {
             xp = xp - xpTable[level];
             level++;
         }
