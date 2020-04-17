@@ -678,9 +678,8 @@ public class Parse {
             if (postGame && !isDotaPlusProcessed) {
                 for (int i = 0; i < numPlayers; i++) {
                     int xp = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_unSelectedHeroBadgeXP", i);
-                    int level = getDotaPlusLevel(xp);
                     Long steamid = getEntityProperty(pr, "m_vecPlayerData.%i.m_iPlayerSteamID", i);
-                    dotapluslevelMap.put(steamid, level);
+                    dotapluslevelMap.put(steamid, xp);
                 }
                 isDotaPlusProcessed = true;
             }
@@ -703,19 +702,6 @@ public class Parse {
         }
 
         return inventoryList;
-    }
-
-    private Integer getDotaPlusLevel(int xp) {
-        // https://dota2.gamepedia.com/Dota_Plus
-        int[] xpTable = {
-                50, 300, 400, 500, 600, 900, 1000, 1100, 1200, 1300, 1400, 1700, 1800, 1900, 2000, 2100, 2200, 2500, 2600, 2700, 2800, 2900, 3000, 3100, 6800
-        };
-        int level = 0;
-        while (level <= 24 && xpTable[level] <= xp) {
-            xp = xp - xpTable[level];
-            level++;
-        }
-        return level;
     }
 
     /**
