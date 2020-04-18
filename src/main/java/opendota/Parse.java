@@ -165,7 +165,7 @@ public class Parse {
     int order = 1;
     boolean isDraftStartTimeProcessed = false; //flag to know if draft start time is already handled
 
-    boolean isDotaPlusProcessed = false
+    boolean isDotaPlusProcessed = false;
 
     public Parse(InputStream input, OutputStream output) throws IOException
     {
