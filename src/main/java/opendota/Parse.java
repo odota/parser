@@ -150,7 +150,6 @@ public class Parse {
     HashMap<Integer, Integer> slot_to_playerslot = new HashMap<Integer, Integer>();
     HashMap<Long, Integer> steamid_to_playerslot = new HashMap<Long, Integer>();
 	HashMap<Integer, Integer> cosmeticsMap = new HashMap<Integer, Integer>();
-	HashMap<Long, Integer> dotaplusxpMap = new HashMap<Long, Integer>(); // steamId, xp
     HashMap<Integer, Integer> ward_ehandle_to_slot = new HashMap<Integer, Integer>();
     InputStream is = null;
     OutputStream os = null;
@@ -164,8 +163,6 @@ public class Parse {
     boolean[] draftOrderProcessed = new boolean[22];
     int order = 1;
     boolean isDraftStartTimeProcessed = false; //flag to know if draft start time is already handled
-
-    boolean isDotaPlusProcessed = false;
 
     public Parse(InputStream input, OutputStream output) throws IOException
     {
@@ -332,13 +329,7 @@ public class Parse {
     	cosmeticsEntry.type = "cosmetics";
     	cosmeticsEntry.key = new Gson().toJson(cosmeticsMap);
     	output(cosmeticsEntry);
-
-    	// Dota plus hero levels
-        Entry dotaPlusEntry = new Entry();
-        dotaPlusEntry.type = "dotaplus";
-        dotaPlusEntry.key = new Gson().toJson(dotaplusxpMap);
-        output(dotaPlusEntry);
-
+        
         //emit epilogue event to mark finish
         Entry epilogueEntry = new Entry();
         epilogueEntry.type = "epilogue";
@@ -672,16 +663,6 @@ public class Parse {
                     output(entry);
                 }
                 nextInterval += INTERVAL;
-            }
-
-            // When the game is over, get dota plus levels
-            if (postGame && !isDotaPlusProcessed) {
-                for (int i = 0; i < numPlayers; i++) {
-                    int xp = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_unSelectedHeroBadgeXP", i);
-                    Long steamid = getEntityProperty(pr, "m_vecPlayerData.%i.m_iPlayerSteamID", i);
-                    dotaplusxpMap.put(steamid, xp);
-                }
-                isDotaPlusProcessed = true;
             }
         }
     }
