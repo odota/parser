@@ -664,6 +664,16 @@ public class Parse {
                 }
                 nextInterval += INTERVAL;
             }
+
+            // When the game is over, get dota plus levels
+            if (postGame && !isDotaPlusProcessed) {
+                for (int i = 0; i < numPlayers; i++) {
+                    int xp = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_unSelectedHeroBadgeXP", i) == null ? 0 : getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_unSelectedHeroBadgeXP", i);
+                    Long steamid = getEntityProperty(pr, "m_vecPlayerData.%i.m_iPlayerSteamID", i);
+                    dotaplusxpMap.put(steamid, xp);
+                }
+                isDotaPlusProcessed = true;
+            }
         }
     }
 
