@@ -150,7 +150,7 @@ public class Parse {
     HashMap<Integer, Integer> slot_to_playerslot = new HashMap<Integer, Integer>();
     HashMap<Long, Integer> steamid_to_playerslot = new HashMap<Long, Integer>();
 	HashMap<Integer, Integer> cosmeticsMap = new HashMap<Integer, Integer>();
-    HashMap<Long, Integer> dotaplusxpMap = new HashMap<Long, Integer>(); // steamId, xp
+    HashMap<Integer, Integer> dotaplusxpMap = new HashMap<Integer, Integer>(); // playerslot, xp
     HashMap<Integer, Integer> ward_ehandle_to_slot = new HashMap<Integer, Integer>();
     InputStream is = null;
     OutputStream os = null;
@@ -679,7 +679,8 @@ public class Parse {
                 for (int i = 0; i < numPlayers; i++) {
                     int xp = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_unSelectedHeroBadgeXP", i) == null ? 0 : getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_unSelectedHeroBadgeXP", i);
                     Long steamid = getEntityProperty(pr, "m_vecPlayerData.%i.m_iPlayerSteamID", i);
-                    dotaplusxpMap.put(steamid, xp);
+                    int playerslot = steamid_to_playerslot.get(steamid);
+                    dotaplusxpMap.put(playerslot, xp);
                 }
                 isDotaPlusProcessed = true;
             }
