@@ -81,6 +81,9 @@ public class Parse {
 		public Float stuns;
 		public Integer hero_id;
 		public transient List<Item> hero_inventory;
+        public Integer itemslot;
+        public Integer charges;
+        public Integer secondary_charges;
 		public Integer life_state;
 		public Integer level;
 		public Integer kills;
@@ -124,6 +127,7 @@ public class Parse {
     private class Item {
         String id;
         //Charges can be used to determine how many items are stacked together on stackable items
+        Integer slot;
         Integer num_charges;
         //item_ward_dispenser uses num_changes for observer wards
         //and num_secondary_changes for sentry wards count
@@ -654,6 +658,20 @@ public class Parse {
                             name_to_slot.put(combatLogName2, entry.slot);
 
                             entry.hero_inventory = getHeroInventory(ctx, e);
+                            if (time - gameStartTime - 1 == 0) {
+                                for (Item item : entry.hero_inventory) {
+                                    Entry startingItems = new Entry(time);
+                                    startingItems.type = "STARTING_ITEM";
+                                    startingItems.targetname = combatLogName;
+                                    startingItems.valuename = item.id;
+                                    startingItems.slot = entry.slot;
+                                    startingItems.value = (entry.slot < 5 ? 0 : 123) + entry.slot;
+                                    startingItems.itemslot = item.slot;
+                                    startingItems.charges = item.num_charges;
+                                    startingItems.secondary_charges = item.num_secondary_charges;
+                                    output(startingItems);
+                                }
+                            }
                             if (!isPlayerStartingItemsWritten.get(entry.slot) && entry.hero_inventory != null) {
                                 // Making something similar to DOTA_COMBATLOG_PURCHASE for each item in the beginning of the game
                                 isPlayerStartingItemsWritten.set(entry.slot, true);
@@ -690,7 +708,7 @@ public class Parse {
     private List<Item> getHeroInventory(Context ctx, Entity eHero) {
         List<Item> inventoryList = new ArrayList<>(6);
 
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < 8; i++) {
             try {
                 Item item = getHeroItem(ctx, eHero, i);
                 if(item != null) {
@@ -731,6 +749,7 @@ public class Parse {
 
         Item item = new Item();
         item.id = itemName;
+        item.slot = idx;
         int numCharges = eItem.getProperty("m_iCurrentCharges");
         if(numCharges != 0) {
             item.num_charges = numCharges;
@@ -739,7 +758,6 @@ public class Parse {
         if(numSecondaryCharges != 0) {
             item.num_secondary_charges = numSecondaryCharges;
         }
-
         return item;
     }
 
