@@ -682,6 +682,7 @@ public class Parse {
                                     startingItemsEntry.value = (entry.slot < 5 ? 0 : 123) + entry.slot;
                                     startingItemsEntry.valuename = item.id;
                                     startingItemsEntry.targetname = combatLogName;
+                                    startingItemsEntry.charges = item.num_charges;
                                     output(startingItemsEntry);
                                 }
                             }
