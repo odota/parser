@@ -81,6 +81,9 @@ public class Parse {
 		public Float stuns;
 		public Integer hero_id;
 		public transient List<Item> hero_inventory;
+        public Integer itemslot;
+        public Integer charges;
+        public Integer secondary_charges;
 		public Integer life_state;
 		public Integer level;
 		public Integer kills;
@@ -125,6 +128,7 @@ public class Parse {
     private class Item {
         String id;
         //Charges can be used to determine how many items are stacked together on stackable items
+        Integer slot;
         Integer num_charges;
         //item_ward_dispenser uses num_changes for observer wards
         //and num_secondary_changes for sentry wards count
@@ -151,6 +155,7 @@ public class Parse {
     HashMap<Integer, Integer> slot_to_playerslot = new HashMap<Integer, Integer>();
     HashMap<Long, Integer> steamid_to_playerslot = new HashMap<Long, Integer>();
 	HashMap<Integer, Integer> cosmeticsMap = new HashMap<Integer, Integer>();
+    HashMap<Integer, Integer> dotaplusxpMap = new HashMap<Integer, Integer>(); // playerslot, xp
     HashMap<Integer, Integer> ward_ehandle_to_slot = new HashMap<Integer, Integer>();
     InputStream is = null;
     OutputStream os = null;
@@ -164,6 +169,8 @@ public class Parse {
     boolean[] draftOrderProcessed = new boolean[22];
     int order = 1;
     boolean isDraftStartTimeProcessed = false; //flag to know if draft start time is already handled
+
+    boolean isDotaPlusProcessed = false;
 
     public Parse(InputStream input, OutputStream output) throws IOException
     {
@@ -330,7 +337,13 @@ public class Parse {
     	cosmeticsEntry.type = "cosmetics";
     	cosmeticsEntry.key = new Gson().toJson(cosmeticsMap);
     	output(cosmeticsEntry);
-        
+
+        // Dota plus hero levels
+        Entry dotaPlusEntry = new Entry();
+        dotaPlusEntry.type = "dotaplus";
+        dotaPlusEntry.key = new Gson().toJson(dotaplusxpMap);
+        output(dotaPlusEntry);
+
         //emit epilogue event to mark finish
         Entry epilogueEntry = new Entry();
         epilogueEntry.type = "epilogue";
@@ -647,6 +660,20 @@ public class Parse {
                             name_to_slot.put(combatLogName2, entry.slot);
 
                             entry.hero_inventory = getHeroInventory(ctx, e);
+                            if (time - gameStartTime - 1 == 0) {
+                                for (Item item : entry.hero_inventory) {
+                                    Entry startingItems = new Entry(time);
+                                    startingItems.type = "STARTING_ITEM";
+                                    startingItems.targetname = combatLogName;
+                                    startingItems.valuename = item.id;
+                                    startingItems.slot = entry.slot;
+                                    startingItems.value = (entry.slot < 5 ? 0 : 123) + entry.slot;
+                                    startingItems.itemslot = item.slot;
+                                    startingItems.charges = item.num_charges;
+                                    startingItems.secondary_charges = item.num_secondary_charges;
+                                    output(startingItems);
+                                }
+                            }
                             if (!isPlayerStartingItemsWritten.get(entry.slot) && entry.hero_inventory != null) {
                                 // Making something similar to DOTA_COMBATLOG_PURCHASE for each item in the beginning of the game
                                 isPlayerStartingItemsWritten.set(entry.slot, true);
@@ -657,6 +684,7 @@ public class Parse {
                                     startingItemsEntry.value = (entry.slot < 5 ? 0 : 123) + entry.slot;
                                     startingItemsEntry.valuename = item.id;
                                     startingItemsEntry.targetname = combatLogName;
+                                    startingItemsEntry.charges = item.num_charges;
                                     output(startingItemsEntry);
                                 }
                             }
@@ -666,13 +694,24 @@ public class Parse {
                 }
                 nextInterval += INTERVAL;
             }
+
+            // When the game is over, get dota plus levels
+            if (postGame && !isDotaPlusProcessed) {
+                for (int i = 0; i < numPlayers; i++) {
+                    int xp = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_unSelectedHeroBadgeXP", i) == null ? 0 : getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_unSelectedHeroBadgeXP", i);
+                    Long steamid = getEntityProperty(pr, "m_vecPlayerData.%i.m_iPlayerSteamID", i);
+                    int playerslot = steamid_to_playerslot.get(steamid);
+                    dotaplusxpMap.put(playerslot, xp);
+                }
+                isDotaPlusProcessed = true;
+            }
         }
     }
 
     private List<Item> getHeroInventory(Context ctx, Entity eHero) {
         List<Item> inventoryList = new ArrayList<>(6);
 
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < 8; i++) {
             try {
                 Item item = getHeroItem(ctx, eHero, i);
                 if(item != null) {
@@ -713,6 +752,7 @@ public class Parse {
 
         Item item = new Item();
         item.id = itemName;
+        item.slot = idx;
         int numCharges = eItem.getProperty("m_iCurrentCharges");
         if(numCharges != 0) {
             item.num_charges = numCharges;
@@ -721,7 +761,6 @@ public class Parse {
         if(numSecondaryCharges != 0) {
             item.num_secondary_charges = numSecondaryCharges;
         }
-
         return item;
     }
 
