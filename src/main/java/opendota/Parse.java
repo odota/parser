@@ -65,6 +65,7 @@ public class Parse {
 		public Boolean targethero;
 		public Boolean attackerillusion;
 		public Boolean targetillusion;
+        public Integer abilitylevel;
 		public String inflictor;
 		public Integer gold_reason;
 		public Integer xp_reason;
@@ -135,8 +136,19 @@ public class Parse {
         Integer num_secondary_charges;
     }
 
+    private class Ability {
+        String id;
+		Integer abilityLevel;
+
+    }
+
     private class UnknownItemFoundException extends RuntimeException {
         public UnknownItemFoundException(String message) {
+            super(message);
+        }
+    }
+    private class UnknownAbilityFoundException extends RuntimeException {
+        public UnknownAbilityFoundException(String message) {
             super(message);
         }
     }
@@ -151,6 +163,8 @@ public class Parse {
     boolean postGame = false; // true when ancient destroyed
     private Gson g = new Gson();
     HashMap<String, Integer> name_to_slot = new HashMap<String, Integer>();
+    HashMap<String, Integer> abilities_tracking = new HashMap<String, Integer>();
+    List<Ability> abilities;
     HashMap<Integer, Integer> slot_to_playerslot = new HashMap<Integer, Integer>();
     HashMap<Long, Integer> steamid_to_playerslot = new HashMap<Long, Integer>();
 	HashMap<Integer, Integer> cosmeticsMap = new HashMap<Integer, Integer>();
@@ -657,6 +671,21 @@ public class Parse {
                             name_to_slot.put(combatLogName, entry.slot);
                             name_to_slot.put(combatLogName2, entry.slot);
 
+                            abilities = getHeroAbilities(ctx, e);
+                            for (Ability ability : abilities) {
+                                // Only push ability updates when the level changes
+                                if (abilities_tracking.get(combatLogName+ability.id) != ability.abilityLevel || abilities_tracking.isEmpty()){
+                                Entry abilitiesEntry = new Entry(time);
+                                abilitiesEntry.type = "DOTA_ABILITY_LEVEL";
+                                abilitiesEntry.targetname = combatLogName;
+                                abilitiesEntry.valuename = ability.id;
+                                abilitiesEntry.abilitylevel = ability.abilityLevel;
+                                // We use the combatLogName & the ability id as some ability IDs are the same
+                                abilities_tracking.put(combatLogName+ability.id,ability.abilityLevel);
+                                output(abilitiesEntry);
+                                }
+                            }
+
                             entry.hero_inventory = getHeroInventory(ctx, e);
                             if (time - gameStartTime - 1 == 0) {
                                 for (Item item : entry.hero_inventory) {
@@ -724,6 +753,22 @@ public class Parse {
         return inventoryList;
     }
 
+    private List<Ability> getHeroAbilities(Context ctx, Entity eHero) {
+        List<Ability> abilityList = new ArrayList<>(31);
+        for (int i = 0; i < 31; i++) {
+            try {
+                Ability ability = getHeroAbilities(ctx, eHero, i);
+                if(ability != null) {
+                    abilityList.add(ability);
+
+                }
+            }
+            catch (Exception e) {
+                System.err.println(e);
+            }
+        }
+    return abilityList;      
+    }
     /**
      * Uses "EntityNames" string table and Entities processor
      * @param ctx Context
@@ -760,6 +805,36 @@ public class Parse {
             item.num_secondary_charges = numSecondaryCharges;
         }
         return item;
+    }
+ /**
+     * Uses "EntityNames" string table and Entities processor
+     * @param ctx Context
+     * @param eHero Hero entity
+     * @param idx 0-31 = Hero abilities including talents and special event items
+     * @return {@code null} - empty slot. Throws @{@link UnknownItemFoundException} if item information can't be extracted
+     */
+    private Ability getHeroAbilities(Context ctx, Entity eHero, int idx) throws UnknownAbilityFoundException {
+        StringTable stEntityNames = ctx.getProcessor(StringTables.class).forName("EntityNames");
+        Entities entities = ctx.getProcessor(Entities.class);
+
+        Integer hAbility = eHero.getProperty("m_hAbilities." + Util.arrayIdxToString(idx));
+        if (hAbility == 0xFFFFFF) {
+            return null;
+        }
+        Entity eAbility = entities.getByHandle(hAbility);
+        if(eAbility == null) {
+            throw new UnknownAbilityFoundException(String.format("Can't find ability by its handle (%d)", hAbility));
+        }
+        String abilityName = stEntityNames.getNameByIndex(eAbility.getProperty("m_pEntity.m_nameStringableIndex"));
+        if(abilityName == null) {
+            throw new UnknownAbilityFoundException("Can't get ability name from EntityName string table");
+        }
+
+        Ability ability = new Ability();
+        ability.id = abilityName;
+        ability.abilityLevel = eAbility.getProperty("m_iLevel");
+
+        return ability;
     }
 
     public <T> T getEntityProperty(Entity e, String property, Integer idx) {
