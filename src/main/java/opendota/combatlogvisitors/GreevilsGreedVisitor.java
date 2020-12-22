@@ -10,7 +10,7 @@ import skadistats.clarity.wire.common.proto.DotaUserMessages.DOTA_COMBATLOG_TYPE
 
 public class GreevilsGreedVisitor implements Visitor<Integer> {
 
-    private static final int GREEVILS_GREED_WINDOW = 40;
+    private static final int GREEVILS_GREED_WINDOW = 36;
     
 	private boolean greevilsGreedLearned = false;
     private Set<Integer> lastHitTimings = new HashSet<>();
