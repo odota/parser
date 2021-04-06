@@ -2,7 +2,7 @@ package opendota;
 
 import com.google.gson.Gson;
 import com.google.protobuf.GeneratedMessage;
-import skadistats.clarity.decoder.Util;
+import skadistats.clarity.io.Util;
 import skadistats.clarity.model.Entity;
 import skadistats.clarity.model.FieldPath;
 import skadistats.clarity.model.StringTable;
