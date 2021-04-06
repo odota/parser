@@ -311,10 +311,10 @@ public class Parse {
     // New chat event
     @OnMessage(CDOTAUserMsg_ChatMessage.class)
     public void onAllChatMessage(Context ctx, CDOTAUserMsg_ChatMessage message) {
-        String type = String.valueOf(message.getChannelType());
+        int type = message.getChannelType();
         Entry entry = new Entry(time);
         entry.slot = message.getSourcePlayerId();
-        entry.type = type;
+        entry.type = (type == 11) ? "chat" : String.valueOf(type);
         entry.key = message.getMessageText();
         output(entry);
     }
