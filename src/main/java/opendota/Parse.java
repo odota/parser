@@ -2,7 +2,7 @@ package opendota;
 
 import com.google.gson.Gson;
 import com.google.protobuf.GeneratedMessage;
-import skadistats.clarity.decoder.Util;
+import skadistats.clarity.io.Util;
 import skadistats.clarity.model.Entity;
 import skadistats.clarity.model.FieldPath;
 import skadistats.clarity.model.StringTable;
@@ -22,6 +22,7 @@ import skadistats.clarity.source.InputStreamSource;
 import skadistats.clarity.wire.common.proto.Demo.CDemoFileInfo;
 import skadistats.clarity.wire.common.proto.DotaUserMessages;
 import skadistats.clarity.wire.common.proto.DotaUserMessages.CDOTAUserMsg_ChatEvent;
+import skadistats.clarity.wire.common.proto.DotaUserMessages.CDOTAUserMsg_ChatMessage;
 import skadistats.clarity.wire.common.proto.DotaUserMessages.CDOTAUserMsg_ChatWheel;
 import skadistats.clarity.wire.common.proto.DotaUserMessages.CDOTAUserMsg_LocationPing;
 import skadistats.clarity.wire.common.proto.DotaUserMessages.CDOTAUserMsg_SpectatorPlayerUnitOrders;
@@ -307,7 +308,18 @@ public class Parse {
         entry.value = value;
         output(entry);
     }
-    
+
+    // New chat event
+    @OnMessage(CDOTAUserMsg_ChatMessage.class)
+    public void onAllChatMessage(Context ctx, CDOTAUserMsg_ChatMessage message) {
+        int type = message.getChannelType();
+        Entry entry = new Entry(time);
+        entry.slot = message.getSourcePlayerId();
+        entry.type = (type == 11) ? "chat" : String.valueOf(type);
+        entry.key = message.getMessageText();
+        output(entry);
+    }
+
     @OnMessage(CDOTAUserMsg_ChatWheel.class)
     public void onChatWheel(Context ctx, CDOTAUserMsg_ChatWheel message) {
     	Entry entry = new Entry(time);
