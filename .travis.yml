@@ -7,6 +7,7 @@ notifications:
   - howardc93@gmail.com
   - aqc2109@columbia.edu
 script:
+- echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
 - docker build -t odota/parser .
 deploy:
   provider: script

@@ -766,8 +766,8 @@ public class Parse {
     }
 
     private List<Ability> getHeroAbilities(Context ctx, Entity eHero) {
-        List<Ability> abilityList = new ArrayList<>(31);
-        for (int i = 0; i < 31; i++) {
+        List<Ability> abilityList = new ArrayList<>(32);
+        for (int i = 0; i < 32; i++) {
             try {
                 Ability ability = getHeroAbilities(ctx, eHero, i);
                 if(ability != null) {
