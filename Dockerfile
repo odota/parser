@@ -1,4 +1,4 @@
-FROM maven:3-openjdk-8
+FROM maven:3.6.3-openjdk-8
 
 WORKDIR /usr/src/parser
 ADD . /usr/src/parser
