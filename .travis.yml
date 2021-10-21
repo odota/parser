@@ -1,5 +1,5 @@
 sudo: required
-language: java
+language: node_js
 services:
 - docker
 notifications:
