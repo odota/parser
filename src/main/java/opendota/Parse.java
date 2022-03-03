@@ -344,8 +344,8 @@ public class Parse {
         entry.key = String.valueOf(message.getParam2());
         Entity e = ctx.getProcessor(Entities.class).getByIndex(message.getEntityindex());
         entry.slot = getEntityProperty(e, "m_nPlayerID", null);
-		if (entry.slot == null) {
-			// try and get slot from old propertyname if null
+        if (entry.slot == null) {
+            // try and get slot from old propertyname if null
             entry.slot = getEntityProperty(e, "m_iPlayerID", null);
         } 
         entry.type = "chat";
