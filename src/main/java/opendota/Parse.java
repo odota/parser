@@ -258,7 +258,6 @@ public class Parse {
         Entity heroEnt = ctx.getProcessor(Entities.class).getByHandle(e.getProperty("m_hAssignedHero"));
         if (heroEnt != null) {
             heroName = heroEnt.getDtClass().getDtName();
-            System.err.println(heroName);
             return unit_to_slot.get(heroName);
         }
         return -1;
