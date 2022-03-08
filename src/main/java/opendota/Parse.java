@@ -163,6 +163,7 @@ public class Parse {
     int gameStartTime = 0;
     boolean postGame = false; // true when ancient destroyed
     private Gson g = new Gson();
+    HashMap<String, Integer> unit_to_slot = new HashMap<String, Integer>();
     HashMap<String, Integer> name_to_slot = new HashMap<String, Integer>();
     HashMap<String, Integer> abilities_tracking = new HashMap<String, Integer>();
     List<Ability> abilities;
@@ -252,13 +253,23 @@ public class Parse {
         //System.err.println(message);
     }
 
+    public int getPlayerSlotFromEntity(Context ctx, Entity e) {
+        String heroName = null;
+        Entity heroEnt = ctx.getProcessor(Entities.class).getByHandle(e.getProperty("m_hAssignedHero"));
+        if (heroEnt != null) {
+            heroName = heroEnt.getDtClass().getDtName();
+            return (unit_to_slot.get(heroName) == null) ? -1 : unit_to_slot.get(heroName);
+        }
+        return -1;
+    }
+
     @OnMessage(CDOTAUserMsg_SpectatorPlayerUnitOrders.class)
     public void onSpectatorPlayerUnitOrders(Context ctx, CDOTAUserMsg_SpectatorPlayerUnitOrders message) {
         Entry entry = new Entry(time);
         entry.type = "actions";
         //the entindex points to a CDOTAPlayer.  This is probably the player that gave the order.
         Entity e = ctx.getProcessor(Entities.class).getByIndex(message.getEntindex());
-        entry.slot = getEntityProperty(e, "m_iPlayerID", null);
+        entry.slot = getPlayerSlotFromEntity(ctx, e);
         //Integer handle = (Integer)getEntityProperty(e, "m_hAssignedHero", null);
         //Entity h = ctx.getProcessor(Entities.class).getByHandle(handle);
         //System.err.println(h.getDtClass().getDtName());
@@ -684,6 +695,7 @@ public class Parse {
                             //populate for combat log mapping
                             name_to_slot.put(combatLogName, entry.slot);
                             name_to_slot.put(combatLogName2, entry.slot);
+                            unit_to_slot.put(unit, entry.slot);
 
                             abilities = getHeroAbilities(ctx, e);
                             for (Ability ability : abilities) {
