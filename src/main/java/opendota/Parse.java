@@ -253,14 +253,20 @@ public class Parse {
         //System.err.println(message);
     }
 
-    public int getPlayerSlotFromEntity(Context ctx, Entity e) {
+    public Integer getPlayerSlotFromEntity(Context ctx, Entity e) {
+        if (e == null) return null;
+        // Try pre 7.31 method
+        Integer slot = getEntityProperty(e, "m_iPlayerID", null);
+        if (slot != null) {
+            return slot;
+        }
         String heroName = null;
         Entity heroEnt = ctx.getProcessor(Entities.class).getByHandle(e.getProperty("m_hAssignedHero"));
         if (heroEnt != null) {
             heroName = heroEnt.getDtClass().getDtName();
-            return (unit_to_slot.get(heroName) == null) ? -1 : unit_to_slot.get(heroName);
+            return unit_to_slot.get(heroName);
         }
-        return -1;
+        return null;
     }
 
     @OnMessage(CDOTAUserMsg_SpectatorPlayerUnitOrders.class)
@@ -913,8 +919,8 @@ public class Parse {
         }
         
         Integer owner = getEntityProperty(e, "m_hOwnerEntity", null); 
-        Entity ownerEntity = ctx.getProcessor(Entities.class).getByHandle(owner); 
-        entry.slot = ownerEntity != null ? (Integer) getEntityProperty(ownerEntity, "m_iPlayerID", null) : null; 
+        Entity ownerEntity = ctx.getProcessor(Entities.class).getByHandle(owner);
+        entry.slot = getPlayerSlotFromEntity(ctx, ownerEntity);
         
         return entry; 
     }
