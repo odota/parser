@@ -913,8 +913,8 @@ public class Parse {
         }
         
         Integer owner = getEntityProperty(e, "m_hOwnerEntity", null); 
-        Entity ownerEntity = ctx.getProcessor(Entities.class).getByHandle(owner); 
-        entry.slot = ownerEntity != null ? (Integer) getEntityProperty(ownerEntity, "m_iPlayerID", null) : null; 
+        Entity ownerEntity = ctx.getProcessor(Entities.class).getByHandle(owner);
+        entry.slot = getPlayerSlotFromEntity(ctx, ownerEntity);
         
         return entry; 
     }
