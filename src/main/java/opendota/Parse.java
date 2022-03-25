@@ -258,7 +258,6 @@ public class Parse {
         // Try pre 7.31 method
         Integer slot = getEntityProperty(e, "m_iPlayerID", null);
         if (slot != null) {
-            System.out.println("Successful m_iPlayerID: " + slot);
             return slot;
         }
         String heroName = null;
