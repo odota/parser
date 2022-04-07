@@ -163,7 +163,6 @@ public class Parse {
     int gameStartTime = 0;
     boolean postGame = false; // true when ancient destroyed
     private Gson g = new Gson();
-    HashMap<String, Integer> unit_to_slot = new HashMap<String, Integer>();
     HashMap<String, Integer> name_to_slot = new HashMap<String, Integer>();
     HashMap<String, Integer> abilities_tracking = new HashMap<String, Integer>();
     List<Ability> abilities;
@@ -255,18 +254,15 @@ public class Parse {
 
     public Integer getPlayerSlotFromEntity(Context ctx, Entity e) {
         if (e == null) return null;
-        // Try pre 7.31 method
-        Integer slot = getEntityProperty(e, "m_iPlayerID", null);
+        Integer slot = getEntityProperty(e, "m_nPlayerID", null);
+        // Sentry wards still use pre 7.31 property for storing new ID
+        if (slot == null) {
+            slot = getEntityProperty(e, "m_iPlayerID", null);
+        }
         if (slot != null) {
-            return slot;
+            slot /= 2;
         }
-        String heroName = null;
-        Entity heroEnt = ctx.getProcessor(Entities.class).getByHandle(e.getProperty("m_hAssignedHero"));
-        if (heroEnt != null) {
-            heroName = heroEnt.getDtClass().getDtName();
-            return unit_to_slot.get(heroName);
-        }
-        return null;
+        return slot;
     }
 
     @OnMessage(CDOTAUserMsg_SpectatorPlayerUnitOrders.class)
@@ -360,7 +356,7 @@ public class Parse {
         entry.unit = String.valueOf(message.getParam1());
         entry.key = String.valueOf(message.getParam2());
         Entity e = ctx.getProcessor(Entities.class).getByIndex(message.getEntityindex());
-        entry.slot = getEntityProperty(e, "m_iPlayerID", null);
+        entry.slot = getPlayerSlotFromEntity(ctx, e);
         entry.type = "chat";
         output(entry);
     }
@@ -701,7 +697,6 @@ public class Parse {
                             //populate for combat log mapping
                             name_to_slot.put(combatLogName, entry.slot);
                             name_to_slot.put(combatLogName2, entry.slot);
-                            unit_to_slot.put(unit, entry.slot);
 
                             abilities = getHeroAbilities(ctx, e);
                             for (Ability ability : abilities) {
