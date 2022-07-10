@@ -8,6 +8,7 @@ jobs:
       - name: Build and test
         run: docker build -t odota/parser .
       - name: Push to Docker
+        if: github.ref == 'refs/heads/master'
         run: ./scripts/postbuild.sh
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
