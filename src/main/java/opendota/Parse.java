@@ -117,6 +117,7 @@ public class Parse {
         public Integer draft_active_team;
         public Integer draft_extime0;
         public Integer draft_extime1;
+        public Integer networth;
 
 		public Entry() {
 		}
@@ -656,6 +657,7 @@ public class Parse {
                     entry.towers_killed = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iTowerKills", teamSlot);
                     entry.roshans_killed = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iRoshanKills", teamSlot);
                     entry.observers_placed = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iObserverWardsPlaced", teamSlot);
+                    entry.networth = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iNetWorth", teamSlot);
                     
                     if (teamSlot >= 0) 
                     {
