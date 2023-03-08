@@ -30,6 +30,7 @@ import skadistats.clarity.wire.common.proto.DotaUserMessages.DOTA_COMBATLOG_TYPE
 import skadistats.clarity.wire.s1.proto.S1UserMessages.CUserMsg_SayText2;
 import skadistats.clarity.wire.s2.proto.S2UserMessages.CUserMessageSayText2;
 import skadistats.clarity.wire.s2.proto.S2DotaGcCommon.CMsgDOTAMatch;
+import skadistats.clarity.wire.common.proto.NetworkBaseTypes;
 
 import java.util.*;
 import java.io.IOException;
@@ -179,6 +180,7 @@ public class Parse {
     private ArrayList<Boolean> isPlayerStartingItemsWritten;
     int pingCount = 0;
     private ArrayList<Entry> logBuffer = new ArrayList<Entry>();
+    int serverTick = 0;
 
     //Draft stage variable
     boolean[] draftOrderProcessed = new boolean[24];
@@ -475,6 +477,11 @@ public class Parse {
         }
     }
 
+    @OnMessage(NetworkBaseTypes.CNETMsg_Tick.class)
+    public void onMessage(NetworkBaseTypes.CNETMsg_Tick message) {
+        serverTick = message.getTick();
+    }
+
     @UsesStringTable("EntityNames")
     @UsesEntities
     @OnTickStart
@@ -510,7 +517,16 @@ public class Parse {
             //System.err.println(grp);
             //dota_gamerules_data.m_iGameMode = 22
             //dota_gamerules_data.m_unMatchID64 = 1193091757
-            time = Math.round((float) getEntityProperty(grp, "m_pGameRules.m_fGameTime", null));
+            Float oldTime = getEntityProperty(grp, "m_pGameRules.m_fGameTime", null);
+            if (oldTime == null) {
+                // 7.32e on, need to calculate time manually
+                boolean isPaused = getEntityProperty(grp, "m_pGameRules.m_bGamePaused", null);
+                int timeTick = isPaused ? getEntityProperty(grp, "m_pGameRules.m_nPauseStartTick", null) : serverTick;
+                int pausedTicks = getEntityProperty(grp, "m_pGameRules.m_nTotalPausedTicks", null);
+                time = Math.round((float)(timeTick - pausedTicks) / 30);
+            } else {
+                time = Math.round(oldTime);
+            }
             //draft timings
             if(draftStage == 2) {
 
