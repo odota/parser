@@ -5,5 +5,5 @@ if [ -n "$DOCKER_USERNAME" ]; then
   docker tag odota/parser:latest
   docker push odota/parser:latest
   docker tag odota/parser howardc93/parser:latest
-  docker push howard93/parser:latest
+  docker push howardc93/parser:latest
 fi
