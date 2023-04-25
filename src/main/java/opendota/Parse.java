@@ -772,8 +772,10 @@ public class Parse {
                 for (int i = 0; i < numPlayers; i++) {
                     int xp = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_unSelectedHeroBadgeXP", i) == null ? 0 : getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_unSelectedHeroBadgeXP", i);
                     Long steamid = getEntityProperty(pr, "m_vecPlayerData.%i.m_iPlayerSteamID", i);
-                    int playerslot = steamid_to_playerslot.get(steamid);
-                    dotaplusxpMap.put(playerslot, xp);
+                    if (steamid_to_playerslot.containsKey(steamid)) {
+                        int playerslot = steamid_to_playerslot.get(steamid);
+                        dotaplusxpMap.put(playerslot, xp);
+                    }
                 }
                 isDotaPlusProcessed = true;
             }
