@@ -119,6 +119,7 @@ public class Parse {
         public Integer draft_extime0;
         public Integer draft_extime1;
         public Integer networth;
+        public Integer stage;
 
 		public Entry() {
 		}
@@ -604,9 +605,11 @@ public class Parse {
             {
                 int added = 0;
                 int i = 0;
+                boolean hasWaitingForDraftPlayers = false;
+                ArrayList<Entry> playerEntries = new ArrayList<Entry>();
                 //according to @Decoud Valve seems to have fixed this issue and players should be in first 10 slots again
                 //sanity check of i to prevent infinite loop when <10 players?
-                while (added < numPlayers && i < 100) {
+                while (added < numPlayers && i < 30) {
                     try 
                     {
                         //check each m_vecPlayerData to ensure the player's team is radiant or dire
@@ -620,12 +623,16 @@ public class Parse {
                             entry.type = "player_slot";
                             entry.key = String.valueOf(added);
                             entry.value = (playerTeam == 2 ? 0 : 128) + teamSlot;
-                            output(entry);
+                            playerEntries.add(entry);
                             //add it to validIndices, add 1 to added
                             validIndices[added] = i;
                             added += 1;
                             slot_to_playerslot.put(added, entry.value);
                             steamid_to_playerslot.put(steamid, entry.value);
+                        } else if (playerTeam == 14) {
+                            // 7.33 player waiting to be drafted onto a team
+                            hasWaitingForDraftPlayers = true;
+                            break;
                         }
                     }
                     catch(Exception e) 
@@ -636,10 +643,15 @@ public class Parse {
 
                     i += 1;
                 }
-                init = true;
+                if (!hasWaitingForDraftPlayers) {
+                    for (int j = 0; j < playerEntries.size(); j++) {
+                        output(playerEntries.get(j));
+                    }
+                    init = true;
+                }
             }
 
-            if (!postGame && time >= nextInterval)
+            if (init && !postGame && time >= nextInterval)
             {
                 //System.err.println(pr);
                 for (int i = 0; i < numPlayers; i++) 
@@ -674,6 +686,7 @@ public class Parse {
                     entry.roshans_killed = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iRoshanKills", teamSlot);
                     entry.observers_placed = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iObserverWardsPlaced", teamSlot);
                     entry.networth = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iNetWorth", teamSlot);
+                    entry.stage = draftStage;
                     
                     if (teamSlot >= 0) 
                     {
