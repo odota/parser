@@ -465,9 +465,9 @@ public class Parse {
         	Integer accountId = getEntityProperty(e, "m_iAccountID", null);
         	Integer itemDefinitionIndex = getEntityProperty(e, "m_iItemDefinitionIndex", null);
         	Integer ownerHandle = getEntityProperty(e, "m_hOwnerEntity", null);
-            Entity owner = ctx.getProcessor(Entities.class).getByHandle(ownerHandle);
+            Entity owner = ownerHandle != null ? ctx.getProcessor(Entities.class).getByHandle(ownerHandle) : null;
         	//System.err.format("%s,%s\n", accountId, itemDefinitionIndex);
-        	if (accountId > 0)
+        	if (accountId > 0 && owner != null)
         	{
             	// Get the owner (a hero entity)
             	Integer playerId = getEntityProperty(owner, "m_iPlayerID", null);
