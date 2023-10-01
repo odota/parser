@@ -216,7 +216,7 @@ public class Parse {
         }
         catch (IOException ex)
         {
-            System.err.println(ex);
+            // System.err.println(ex);
         }
     }
 
@@ -806,7 +806,7 @@ public class Parse {
                 }
             }
             catch (Exception e) {
-                System.err.println(e);
+                // System.err.println(e);
             }
         }
 
@@ -824,7 +824,7 @@ public class Parse {
                 }
             }
             catch (Exception e) {
-                System.err.println(e);
+                // System.err.println(e);
             }
         }
     return abilityList;      
