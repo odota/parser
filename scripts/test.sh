@@ -1,1 +1,2 @@
- curl localhost:5600 --data-binary "@./7359804449_987225713.dem"
+#curl localhost:5600 --data-binary "@/datadrive/odota-parser/7355186741_1742953546.dem"
+curl localhost:5600 --data-binary "@/datadrive/odota-parser/7437280975_580771917.dem"

@@ -207,7 +207,7 @@ public class Parse {
     
     public void output(Entry e) {
         try {
-            if (gameStartTime == 0) {
+            if (gameStartTime == 0 && logBuffer != null) {
                 logBuffer.add(e);
             } else {
                 e.time -= gameStartTime;
@@ -221,6 +221,9 @@ public class Parse {
     }
 
     public void flushLogBuffer() {
+        if (logBuffer == null) {
+            return;
+        }
         for (Entry e : logBuffer) {
             output(e);
         }
@@ -441,8 +444,7 @@ public class Parse {
                 postGame = true;
             }
             if (combatLogEntry.type.equals("DOTA_COMBATLOG_GAME_STATE") && combatLogEntry.value == 5) {
-                //alternate to combat log for getting game zero time (looks like this is set at the same time as the game start, so it's not any better for streaming)
-                // int currGameStartTime = Math.round( (float) grp.getProperty("m_pGameRules.m_flGameStartTime"));
+                // See alternative gameStartTime from grp
                 if (gameStartTime == 0) {
                     gameStartTime = combatLogEntry.time;
                     flushLogBuffer();
@@ -528,7 +530,13 @@ public class Parse {
             } else {
                 time = Math.round(oldTime);
             }
-            //draft timings
+            // alternate to combat log for getting game zero time (looks like this is set at the same time as the game start, so it's not any better for streaming)
+            // Some replays don't have the combat log event for some reason so also do this here
+            int currGameStartTime = Math.round( (float) grp.getProperty("m_pGameRules.m_flGameStartTime"));
+            if (gameStartTime == 0 && currGameStartTime != 0) {
+                gameStartTime = currGameStartTime;
+                flushLogBuffer();
+            }
             if(draftStage == 2) {
 
                 //determine the time the draftings start
