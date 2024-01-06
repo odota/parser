@@ -10,7 +10,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
       - uses: actions/checkout@v2
       - name: Build and test
-        run: docker buildx build -t odota/parser --platform linux/amd64,linux/arm64 .
+        run: docker buildx build -t odota/parser --platform linux/amd64,linux/arm64 --output type=docker .
       - name: Push to Docker
         if: github.ref == 'refs/heads/master'
         run: ./scripts/postbuild.sh
