@@ -1,5 +1,6 @@
 package opendota;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -45,8 +46,6 @@ public class Main {
     static class BlobHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange t) throws IOException {
-            t.sendResponseHeaders(200, 0);
-            OutputStream os = t.getResponseBody();
             try {
                 Map<String, String> query = splitQuery(t.getRequestURI());
                 URL replayUrl = new URL(query.get("replay_url"));
@@ -58,18 +57,26 @@ public class Main {
                 // Download, unzip, parse, aggregate
                 Process proc = new ProcessBuilder(new String[] {"bash", "-c", cmd})
                 .start();
-
-                // Write error to console (uncomment for debugging but this causes the process not to exit)
-                // copy(proc.getErrorStream(), System.err);
-
-                // Write output to response
-                copy(proc.getInputStream(), os);
+                ByteArrayOutputStream output = new ByteArrayOutputStream();
+                ByteArrayOutputStream error = new ByteArrayOutputStream();
+                copy(proc.getInputStream(), output);
+                // Write error to console
+                copy(proc.getErrorStream(), error);
+                System.err.println(error.toString());
+                int exitCode = proc.waitFor();
+                if (exitCode != 0) {
+                    // We can send 200 status here if expected error (read the error string)
+                    t.sendResponseHeaders(500, 0);
+                    t.getResponseBody().close();
+                } else {
+                    t.sendResponseHeaders(200, output.size());
+                    output.writeTo(t.getResponseBody());
+                    t.getResponseBody().close();
+                }
+            } 
+            catch(InterruptedException e) {
+                e.printStackTrace();
             }
-            catch (Exception e)
-            {
-            	e.printStackTrace();
-            }
-            os.close();
         }
     }
 
