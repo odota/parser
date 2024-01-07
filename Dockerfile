@@ -1,11 +1,8 @@
 FROM maven:3.8.3-openjdk-8
 
 # Install nodejs for log processing
-ENV NVM_DIR /usr/local/nvm
-RUN mkdir -p $NVM_DIR
-RUN curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.1/install.sh | bash
-ENV NODE_VERSION v20
-RUN /bin/bash -c "source $NVM_DIR/nvm.sh && nvm install $NODE_VERSION && nvm use --delete-prefix $NODE_VERSION"
+ARG NODE_VERSION=20.10.0
+RUN curl https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-x64.tar.gz | tar -xz -C /usr/local --strip-components 1
 
 WORKDIR /usr/src/parser
 ADD . /usr/src/parser

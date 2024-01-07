@@ -50,12 +50,18 @@ public class Main {
             try {
                 Map<String, String> query = splitQuery(t.getRequestURI());
                 URL replayUrl = new URL(query.get("replay_url"));
-                Runtime run  = Runtime.getRuntime();
-                String[] cmd = new String[]{"bash","-c", String.format("curl --max-time 90 --fail -L %s | %s | curl -X POST -T - localhost:5600 | node processors/createParsedDataBlob.mjs", replayUrl, replayUrl.toString().endsWith(".bz2") ? "bunzip2" : "cat")};
-
+                String cmd = String.format("curl --max-time 90 --fail -L %s | %s | curl -X POST --data-binary @- localhost:5600 | node processors/createParsedDataBlob.mjs",
+                    replayUrl, 
+                    replayUrl.toString().endsWith(".bz2") ? "bunzip2" : "cat"
+                );
+                System.err.println(cmd);
                 // Download, unzip, parse, aggregate
-                Process proc = run.exec(cmd);
-                
+                Process proc = new ProcessBuilder(new String[] {"bash", "-c", cmd})
+                .start();
+
+                // Write error to console (uncomment for debugging but this causes the process not to exit)
+                // copy(proc.getErrorStream(), System.err);
+
                 // Write output to response
                 copy(proc.getInputStream(), os);
             }
