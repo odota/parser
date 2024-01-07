@@ -9,6 +9,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLDecoder;
+import java.rmi.server.Operation;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -49,7 +50,7 @@ public class Main {
             try {
                 Map<String, String> query = splitQuery(t.getRequestURI());
                 URL replayUrl = new URL(query.get("replay_url"));
-                String cmd = String.format("curl --max-time 90 --fail -L %s | %s | curl -X POST --data-binary @- localhost:5600 | node processors/createParsedDataBlob.mjs",
+                String cmd = String.format("curl --max-time 120 --fail -L %s | %s | curl -X POST --data-binary @- localhost:5600 | node processors/createParsedDataBlob.mjs",
                     replayUrl, 
                     replayUrl.toString().endsWith(".bz2") ? "bunzip2" : "cat"
                 );
@@ -65,8 +66,18 @@ public class Main {
                 System.err.println(error.toString());
                 int exitCode = proc.waitFor();
                 if (exitCode != 0) {
-                    // We can send 200 status here if expected error (read the error string)
-                    t.sendResponseHeaders(500, 0);
+                    // We can send 200 status here and no response if expected error (read the error string)
+                    // Maybe we can pass the specific error info in the response headers
+                    int status = 500;
+                    if (error.toString().contains("curl: (28) Operation timed out")) {
+                        // Parse took too long, maybe China replay?
+                        status = 200;
+                    }
+                    if (error.toString().contains("bunzip2: Data integrity error when decompressing")) {
+                        // Corrupted replay, don't retry
+                        status = 200;
+                    }
+                    t.sendResponseHeaders(status, 0);
                     t.getResponseBody().close();
                 } else {
                     t.sendResponseHeaders(200, output.size());
