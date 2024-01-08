@@ -167,6 +167,7 @@ public class Parse {
     boolean init = false;
     int gameStartTime = 0;
     boolean postGame = false; // true when ancient destroyed
+    boolean epilogue = false;
     private Gson g = new Gson();
     HashMap<String, Integer> name_to_slot = new HashMap<String, Integer>();
     HashMap<String, Integer> abilities_tracking = new HashMap<String, Integer>();
@@ -208,7 +209,7 @@ public class Parse {
 
     public void output(Entry e) {
         try {
-            if (gameStartTime == 0 && logBuffer != null) {
+            if (!epilogue && gameStartTime == 0 && logBuffer != null) {
                 logBuffer.add(e);
             } else {
                 e.time -= gameStartTime;
@@ -398,6 +399,9 @@ public class Parse {
         epilogueEntry.type = "epilogue";
         epilogueEntry.key = new Gson().toJson(message);
         output(epilogueEntry);
+        epilogue = true;
+        // Some replays don't have a game start time and we never flush, so just do it now
+        flushLogBuffer();
     }
 
     @OnCombatLogEntry
