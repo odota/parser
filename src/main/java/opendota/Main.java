@@ -1,8 +1,10 @@
 package opendota;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
@@ -11,6 +13,8 @@ import java.net.URL;
 import java.net.URLDecoder;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -24,6 +28,11 @@ public class Main {
         server.createContext("/blob", new BlobHandler());
         server.setExecutor(java.util.concurrent.Executors.newCachedThreadPool());
         server.start();
+
+        // Re-register ourselves
+        Timer timer = new Timer(); 
+        TimerTask task = new RegisterTask(); 
+        timer.schedule(task, 0, 10000);
     }
     
     static class MyHandler implements HttpHandler {
@@ -118,3 +127,38 @@ public class Main {
         return nread;
     }
 }
+
+class RegisterTask extends TimerTask 
+{ 
+   public void run()
+   {
+        if (System.getenv().containsKey("SERVICE_REGISTRY_HOST")) {
+            try {
+                String ip = "";
+                if (System.getenv().containsKey("EXTERNAL")) {
+                    // If configured as external, request external IP and report it
+                    ip = RegisterTask.shellExec("curl api.ipify.org");
+                } else {
+                    // Otherwise, use hostname -i to get internal IP
+                    ip = RegisterTask.shellExec("hostname -i");
+                }
+                int nproc = Runtime.getRuntime().availableProcessors();
+                RegisterTask.shellExec("curl -X POST http://" + System.getenv().get("SERVICE_REGISTRY_HOST") + "/register/parser/" + ip + "?size=" + nproc);
+            } catch (Exception e) {
+                System.err.println(e);
+            }
+        }
+   }
+
+   public static String shellExec(String cmdCommand) throws IOException {
+        final StringBuilder stringBuilder = new StringBuilder();
+        final Process process = Runtime.getRuntime().exec(cmdCommand);
+        final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+        String line;
+        while ((line = bufferedReader.readLine()) != null) {
+            stringBuilder.append(line);
+        }
+        return stringBuilder.toString();
+    }
+} 
+
