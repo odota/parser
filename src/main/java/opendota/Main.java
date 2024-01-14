@@ -32,7 +32,7 @@ public class Main {
         // Re-register ourselves
         Timer timer = new Timer(); 
         TimerTask task = new RegisterTask(); 
-        timer.schedule(task, 0, 10000);
+        timer.schedule(task, 0, 5000);
     }
     
     static class MyHandler implements HttpHandler {
