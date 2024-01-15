@@ -23,8 +23,9 @@ import com.sun.net.httpserver.HttpServer;
 public class Main {
 
     public static void main(String[] args) throws Exception {
-        HttpServer server = HttpServer.create(new InetSocketAddress(Integer.valueOf(args.length > 0 ? args[0] : "5600")), 0);
+        HttpServer server = HttpServer.create(new InetSocketAddress(Integer.valueOf("5600")), 0);
         server.createContext("/", new MyHandler());
+        server.createContext("/healthz", new HealthHandler());
         server.createContext("/blob", new BlobHandler());
         server.setExecutor(java.util.concurrent.Executors.newCachedThreadPool());
         server.start();
@@ -48,6 +49,16 @@ public class Main {
             {
             	e.printStackTrace();
             }
+            os.close();
+        }
+    }
+
+    static class HealthHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange t) throws IOException {
+            t.sendResponseHeaders(200, 2);
+            OutputStream os = t.getResponseBody();
+            os.write("ok".getBytes());
             os.close();
         }
     }
@@ -143,7 +154,7 @@ class RegisterTask extends TimerTask
                     ip = RegisterTask.shellExec("hostname -i");
                 }
                 int nproc = Runtime.getRuntime().availableProcessors();
-                RegisterTask.shellExec("curl -X POST -L" + System.getenv().get("SERVICE_REGISTRY_HOST") + "/register/parser/" + ip + "?size=" + nproc);
+                RegisterTask.shellExec("curl -X POST -L" + System.getenv().get("SERVICE_REGISTRY_HOST") + "/register/parser/" + ip + ":5600" + "?size=" + nproc);
             } catch (Exception e) {
                 System.err.println(e);
             }
