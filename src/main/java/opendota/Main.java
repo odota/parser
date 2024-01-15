@@ -154,7 +154,7 @@ class RegisterTask extends TimerTask
                     ip = RegisterTask.shellExec("hostname -i");
                 }
                 int nproc = Runtime.getRuntime().availableProcessors();
-                String postCmd = "curl -X POST -L" + System.getenv().get("SERVICE_REGISTRY_HOST") + "/register/parser/" + ip + ":5600" + "?size=" + nproc;
+                String postCmd = "curl -X POST -L " + System.getenv().get("SERVICE_REGISTRY_HOST") + "/register/parser/" + ip + ":5600" + "?size=" + nproc;
                 System.err.println(postCmd);
                 RegisterTask.shellExec(postCmd);
             } catch (Exception e) {
