@@ -127,7 +127,11 @@ function processTeamfights(entries, meta) {
           }
         } else if (e.type === 'ability_uses' || e.type === 'item_uses') {
           // count skills, items
-          populate(e, tf);
+          // console.log(e);
+          // Using slot directly as index appears to be incorrect for these fields as of 2024 (see processExpand)
+          // So just compute an index based on player_slot
+          const computedSlot = e.player_slot % (128 - 5);
+          tf.players[computedSlot][e.type][e.key] = (tf.players[computedSlot][e.type][e.key] ?? 0) + 1;
         }
       }
     }
