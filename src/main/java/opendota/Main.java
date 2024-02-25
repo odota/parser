@@ -98,6 +98,7 @@ public class Main {
                     }
                     if (error.toString().contains("bunzip2: (stdin) is not a bzip2 file.")) {
                         // Tried to unzip a non-bz2 file
+                        status = 200;
                     }
                     t.sendResponseHeaders(status, 0);
                     t.getResponseBody().close();
