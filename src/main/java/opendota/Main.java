@@ -96,6 +96,9 @@ public class Main {
                         // Corrupted replay, don't retry
                         status = 200;
                     }
+                    if (error.toString().contains("bunzip2: (stdin) is not a bzip2 file.")) {
+                        // Tried to unzip a non-bz2 file
+                    }
                     t.sendResponseHeaders(status, 0);
                     t.getResponseBody().close();
                 } else {
