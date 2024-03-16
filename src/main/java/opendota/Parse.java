@@ -217,6 +217,8 @@ public class Parse {
             }
         } catch (IOException ex) {
             // System.err.println(ex);
+        } catch (IllegalArgumentException iex) {
+            System.err.println(iex);
         }
     }
 
