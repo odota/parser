@@ -1,4 +1,4 @@
-FROM maven:3.8.3-openjdk-17
+FROM maven:3-openjdk-18-slim
 
 # Install nodejs for log processing
 ARG NODE_VERSION=20.10.0
