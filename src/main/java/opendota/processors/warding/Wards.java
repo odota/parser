@@ -22,7 +22,7 @@ import skadistats.clarity.processor.entities.UsesEntities;
 import skadistats.clarity.processor.gameevents.OnCombatLogEntry;
 import skadistats.clarity.processor.reader.OnTickEnd;
 import skadistats.clarity.processor.runner.Context;
-import skadistats.clarity.wire.common.proto.DotaUserMessages;
+import skadistats.clarity.wire.dota.common.proto.DOTAUserMessages;
 
 /**
  * @author micaelbergeron
@@ -163,7 +163,7 @@ public class Wards {
     }
     
     private boolean isWardDeath(CombatLogEntry e) {
-        return e.getType().equals(DotaUserMessages.DOTA_COMBATLOG_TYPES.DOTA_COMBATLOG_DEATH)
+        return e.getType().equals(DOTAUserMessages.DOTA_COMBATLOG_TYPES.DOTA_COMBATLOG_DEATH)
                 && WARDS_TARGET_NAMES.contains(e.getTargetName());
     }
     

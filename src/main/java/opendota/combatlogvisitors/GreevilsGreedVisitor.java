@@ -6,7 +6,7 @@ import java.util.Iterator;
 import java.util.Set;
 
 import skadistats.clarity.model.CombatLogEntry;
-import skadistats.clarity.wire.common.proto.DotaUserMessages.DOTA_COMBATLOG_TYPES;
+import skadistats.clarity.wire.dota.common.proto.DOTAUserMessages.DOTA_COMBATLOG_TYPES;
 
 public class GreevilsGreedVisitor implements Visitor<Integer> {
 

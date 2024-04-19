@@ -19,18 +19,17 @@ import skadistats.clarity.model.CombatLogEntry;
 import skadistats.clarity.processor.stringtables.StringTables;
 import skadistats.clarity.processor.stringtables.UsesStringTable;
 import skadistats.clarity.source.InputStreamSource;
-import skadistats.clarity.wire.common.proto.Demo.CDemoFileInfo;
-import skadistats.clarity.wire.common.proto.DotaUserMessages;
-import skadistats.clarity.wire.common.proto.DotaUserMessages.CDOTAUserMsg_ChatEvent;
-import skadistats.clarity.wire.common.proto.DotaUserMessages.CDOTAUserMsg_ChatMessage;
-import skadistats.clarity.wire.common.proto.DotaUserMessages.CDOTAUserMsg_ChatWheel;
-import skadistats.clarity.wire.common.proto.DotaUserMessages.CDOTAUserMsg_LocationPing;
-import skadistats.clarity.wire.common.proto.DotaUserMessages.CDOTAUserMsg_SpectatorPlayerUnitOrders;
-import skadistats.clarity.wire.common.proto.DotaUserMessages.DOTA_COMBATLOG_TYPES;
-import skadistats.clarity.wire.s1.proto.S1UserMessages.CUserMsg_SayText2;
-import skadistats.clarity.wire.s2.proto.S2UserMessages.CUserMessageSayText2;
-import skadistats.clarity.wire.s2.proto.S2DotaGcCommon.CMsgDOTAMatch;
-import skadistats.clarity.wire.common.proto.NetworkBaseTypes;
+import skadistats.clarity.wire.shared.common.proto.CommonNetworkBaseTypes.CNETMsg_Tick;
+import skadistats.clarity.wire.shared.demo.proto.Demo.CDemoFileInfo;
+import skadistats.clarity.wire.dota.common.proto.DOTAUserMessages.CDOTAUserMsg_ChatEvent;
+import skadistats.clarity.wire.dota.common.proto.DOTAUserMessages.CDOTAUserMsg_ChatMessage;
+import skadistats.clarity.wire.dota.common.proto.DOTAUserMessages.CDOTAUserMsg_ChatWheel;
+import skadistats.clarity.wire.dota.common.proto.DOTAUserMessages.CDOTAUserMsg_LocationPing;
+import skadistats.clarity.wire.dota.common.proto.DOTAUserMessages.CDOTAUserMsg_SpectatorPlayerUnitOrders;
+import skadistats.clarity.wire.dota.common.proto.DOTAUserMessages.DOTA_COMBATLOG_TYPES;
+import skadistats.clarity.wire.dota.s2.proto.DOTAS2GcMessagesCommon.CMsgDOTAMatch;
+import skadistats.clarity.wire.shared.s1.proto.S1UserMessages.CUserMsg_SayText2;
+import skadistats.clarity.wire.shared.s2.proto.S2UserMessages.CUserMessageSayText2;
 
 import java.util.*;
 import java.io.IOException;
@@ -482,8 +481,8 @@ public class Parse {
         }
     }
 
-    @OnMessage(NetworkBaseTypes.CNETMsg_Tick.class)
-    public void onMessage(NetworkBaseTypes.CNETMsg_Tick message) {
+    @OnMessage(CNETMsg_Tick.class)
+    public void onMessage(CNETMsg_Tick message) {
         serverTick = message.getTick();
     }
 

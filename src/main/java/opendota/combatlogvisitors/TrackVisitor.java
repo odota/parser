@@ -3,7 +3,7 @@ package opendota.combatlogvisitors;
 import java.util.HashMap;
 
 import skadistats.clarity.model.CombatLogEntry;
-import skadistats.clarity.wire.common.proto.DotaUserMessages.DOTA_COMBATLOG_TYPES;
+import skadistats.clarity.wire.dota.common.proto.DOTAUserMessages.DOTA_COMBATLOG_TYPES;
 
 public class TrackVisitor implements Visitor<TrackVisitor.TrackStatus> {
 
