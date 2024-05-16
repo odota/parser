@@ -77,9 +77,9 @@ public class Parse {
         public Integer gold;
         public Integer lh;
         public Integer xp;
-        public Integer x;
-        public Integer y;
-        public Integer z;
+        public Float x;
+        public Float y;
+        public Float z;
         public Float stuns;
         public Integer hero_id;
         public transient List<Item> hero_inventory;
@@ -126,6 +126,10 @@ public class Parse {
         public Entry(Integer time) {
             this.time = time;
         }
+    }
+
+    private Float getPreciseLocation (Integer cell, Float vec) {
+      return (cell*128.0f+vec)/128;
     }
 
     private class Item {
@@ -724,8 +728,15 @@ public class Parse {
                     // get the hero's coordinates
                     if (e != null) {
                         // System.err.println(e);
-                        entry.x = getEntityProperty(e, "CBodyComponent.m_cellX", null);
-                        entry.y = getEntityProperty(e, "CBodyComponent.m_cellY", null);
+                        //CBodyComponent.m_cell[XY] * 128 + CBodyComponent.m_vec[XY]
+                        Integer cx = getEntityProperty(e, "CBodyComponent.m_cellX", null);
+                        Integer cy = getEntityProperty(e, "CBodyComponent.m_cellY", null);
+
+                        Float vx = getEntityProperty(e, "CBodyComponent.m_vecX", null);
+                        Float vy = getEntityProperty(e, "CBodyComponent.m_vecY", null);
+
+                        entry.x = getPreciseLocation(cx,vx);
+                        entry.y = getPreciseLocation(cy,vy);
                         // System.err.format("%s, %s\n", entry.x, entry.y);
                         // get the hero's entity name, ex: CDOTA_Hero_Zuus
                         entry.unit = e.getDtClass().getDtName();
@@ -955,14 +966,26 @@ public class Parse {
     private Entry buildWardEntry(Context ctx, Entity e) {
         Entry entry = new Entry(time);
         boolean isObserver = !e.getDtClass().getDtName().contains("TrueSight");
-        Integer x = getEntityProperty(e, "CBodyComponent.m_cellX", null);
-        Integer y = getEntityProperty(e, "CBodyComponent.m_cellY", null);
-        Integer z = getEntityProperty(e, "CBodyComponent.m_cellZ", null);
+
+        Integer cx = getEntityProperty(e, "CBodyComponent.m_cellX", null);
+        Integer cy = getEntityProperty(e, "CBodyComponent.m_cellY", null);
+        Integer cz = getEntityProperty(e, "CBodyComponent.m_cellZ", null);
+
+        Float vx = getEntityProperty(e, "CBodyComponent.m_vecX", null);
+        Float vy = getEntityProperty(e, "CBodyComponent.m_vecY", null);
+        Float vz = getEntityProperty(e, "CBodyComponent.m_vecZ", null);
+
+        Float x = getPreciseLocation(cx,vx);
+        Float y = getPreciseLocation(cy,vy);
+        Float z = getPreciseLocation(cz,vz);
+
         Integer life_state = getEntityProperty(e, "m_lifeState", null);
-        Integer[] pos = { x, y };
+        Float[] pos = { x, y };
+
         entry.x = x;
         entry.y = y;
         entry.z = z;
+
         entry.type = isObserver ? "obs" : "sen";
         entry.entityleft = life_state == 1;
         entry.key = Arrays.toString(pos);
