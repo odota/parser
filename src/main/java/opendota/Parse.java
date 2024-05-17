@@ -975,20 +975,14 @@ public class Parse {
         Float vy = getEntityProperty(e, "CBodyComponent.m_vecY", null);
         Float vz = getEntityProperty(e, "CBodyComponent.m_vecZ", null);
 
-        Float x = getPreciseLocation(cx,vx);
-        Float y = getPreciseLocation(cy,vy);
-        Float z = getPreciseLocation(cz,vz);
-
         Integer life_state = getEntityProperty(e, "m_lifeState", null);
-        Float[] pos = { x, y };
 
-        entry.x = x;
-        entry.y = y;
-        entry.z = z;
+        entry.x = getPreciseLocation(cx,vx);
+        entry.y = getPreciseLocation(cy,vy);
+        entry.z = getPreciseLocation(cz,vz);
 
         entry.type = isObserver ? "obs" : "sen";
         entry.entityleft = life_state == 1;
-        entry.key = Arrays.toString(pos);
         entry.ehandle = e.getHandle();
 
         if (entry.entityleft) {

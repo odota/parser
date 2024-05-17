@@ -26,6 +26,12 @@ function processExpand(entries, meta) {
    * Place a copy of the entry in the output
    * */
   function expand(e) {
+    //if there are cooridnates, round to one decimal point
+    e.x?e.x=parseFloat(e.x.toFixed(1)):null
+    e.y?e.y=parseFloat(e.y.toFixed(1)):null
+    e.z?e.z=parseFloat(e.z.toFixed(1)):null
+    //generate "key" for entries with x/y and no key
+    if (!e.key && e.x && e.y) e.key = JSON.stringify([e.x,e.y])
     // set slot and player_slot
     const slot = 'slot' in e ? e.slot : meta.hero_to_slot[e.unit];
     output.push({ ...e, slot, player_slot: meta.slot_to_playerslot[slot] });
@@ -588,7 +594,6 @@ function processExpand(entries, meta) {
           time: e.time,
           slot: e.slot,
           type: 'lane_pos',
-          key: JSON.stringify([e.x, e.y]),
           posData: true,
         });
       }
