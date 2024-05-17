@@ -594,6 +594,7 @@ function processExpand(entries, meta) {
           time: e.time,
           slot: e.slot,
           type: 'lane_pos',
+          key: JSON.stringify([e.x,e.y].map(n => parseFloat(n.toFixed(1)))),
           posData: true,
         });
       }
