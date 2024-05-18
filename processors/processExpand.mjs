@@ -32,11 +32,10 @@ function processExpand(entries, meta) {
     if (e.z) { e.z=parseFloat(e.z.toFixed(1)) }
     //generate "key" for entries with x/y and no key
     if (!e.key && e.x && e.y) { 
-      const key = [
+      e.key = JSON.stringify([
         Math.round(e.x),
         Math.round(e.y)
-      ]
-      e.key = JSON.stringify(key) 
+      ]) 
     }
     // set slot and player_slot
     const slot = 'slot' in e ? e.slot : meta.hero_to_slot[e.unit];
