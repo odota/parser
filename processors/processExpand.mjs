@@ -27,11 +27,17 @@ function processExpand(entries, meta) {
    * */
   function expand(e) {
     //if there are cooridnates, round to one decimal point
-    e.x?e.x=parseFloat(e.x.toFixed(1)):null
-    e.y?e.y=parseFloat(e.y.toFixed(1)):null
-    e.z?e.z=parseFloat(e.z.toFixed(1)):null
+    if (e.x) { e.x=parseFloat(e.x.toFixed(1)) }
+    if (e.y) { e.y=parseFloat(e.y.toFixed(1)) }
+    if (e.z) { e.z=parseFloat(e.z.toFixed(1)) }
     //generate "key" for entries with x/y and no key
-    if (!e.key && e.x && e.y) e.key = JSON.stringify([e.x,e.y])
+    if (!e.key && e.x && e.y) { 
+      const key = [
+        Math.round(e.x),
+        Math.round(e.y)
+      ]
+      e.key = JSON.stringify(key) 
+    }
     // set slot and player_slot
     const slot = 'slot' in e ? e.slot : meta.hero_to_slot[e.unit];
     output.push({ ...e, slot, player_slot: meta.slot_to_playerslot[slot] });
@@ -594,7 +600,10 @@ function processExpand(entries, meta) {
           time: e.time,
           slot: e.slot,
           type: 'lane_pos',
-          key: JSON.stringify([e.x,e.y].map(n => parseFloat(n.toFixed(1)))),
+          key: JSON.stringify([
+            Math.round(e.x),
+            Math.round(e.y)
+          ]),
           posData: true,
         });
       }
