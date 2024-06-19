@@ -82,6 +82,7 @@ public class Parse {
         public Float z;
         public Float stuns;
         public Integer hero_id;
+        public Integer variant;
         public transient List<Item> hero_inventory;
         public Integer itemslot;
         public Integer charges;
@@ -676,6 +677,7 @@ public class Parse {
                 // System.err.println(pr);
                 for (int i = 0; i < numPlayers; i++) {
                     Integer hero = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_nSelectedHeroID", validIndices[i]);
+                    Integer variant = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_nSelectedHeroVariant", validIndices[i]);
                     int handle = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_hSelectedHero", validIndices[i]);
                     int playerTeam = getEntityProperty(pr, "m_vecPlayerData.%i.m_iPlayerTeam", validIndices[i]);
                     int teamSlot = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iTeamSlot", validIndices[i]);
@@ -741,6 +743,7 @@ public class Parse {
                         // get the hero's entity name, ex: CDOTA_Hero_Zuus
                         entry.unit = e.getDtClass().getDtName();
                         entry.hero_id = hero;
+                        entry.variant = variant;
                         entry.life_state = getEntityProperty(e, "m_lifeState", null);
                         // check if hero has been assigned to entity
                         if (hero > 0) {
