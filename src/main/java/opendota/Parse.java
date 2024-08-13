@@ -275,6 +275,9 @@ public class Parse {
         if (slot == null) {
             slot = getEntityProperty(e, "m_iPlayerID", null);
         }
+        if (slot == null) {
+            slot = getEntityProperty(e, "m_iPlayerOwnerID", null);
+        }
         if (slot != null) {
             slot /= 2;
         }
@@ -473,7 +476,9 @@ public class Parse {
 
     @OnEntityEntered
     public void onEntityEntered(Context ctx, Entity e) {
-        if (e.getDtClass().getDtName().equals("CDOTAWearableItem")) {
+        String entityName = e.getDtClass().getDtName();
+
+        if (entityName.equals("CDOTAWearableItem")) {
             Integer accountId = getEntityProperty(e, "m_iAccountID", null);
             Integer itemDefinitionIndex = getEntityProperty(e, "m_iItemDefinitionIndex", null);
             // System.err.format("%s,%s\n", accountId, itemDefinitionIndex);
@@ -483,6 +488,12 @@ public class Parse {
                 Integer playerSlot = steamid_to_playerslot.get(accountId64);
                 cosmeticsMap.put(itemDefinitionIndex, playerSlot);
             }
+        } else if (entityName.startsWith("CDOTA_Item_Tier") && entityName.endsWith("Token")) {
+            Entry entry = new Entry(time);
+            entry.type = "neutral_token";
+            entry.slot = getPlayerSlotFromEntity(ctx, e);
+            entry.key = entityName.substring("CDOTA_Item_".length()); // Tier1Token
+            output(entry);
         }
     }
 

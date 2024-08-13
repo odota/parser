@@ -66,5 +66,6 @@ export default {
     randomed: false,
     repicked: false,
     pred_vict: false,
+    neutral_token: [],
   })),
 };
