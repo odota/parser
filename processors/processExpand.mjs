@@ -630,6 +630,12 @@ function processExpand(entries, meta) {
     cosmetics(e) {
       expand(e);
     },
+    neutral_token(e) {
+      expand({
+        ...e,
+        type: 'neutral_tokens_log',
+      });
+    },
   };
   for (let i = 0; i < entries.length; i += 1) {
     const e = entries[i];

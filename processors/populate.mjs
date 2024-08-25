@@ -66,7 +66,8 @@ function populate(e, container, meta) {
         } else if (
           e.type === 'purchase_log' ||
           e.type === 'kills_log' ||
-          e.type === 'runes_log'
+          e.type === 'runes_log' ||
+          e.type === 'neutral_tokens_log'
         ) {
           arrEntry = {
             time: e.time,
