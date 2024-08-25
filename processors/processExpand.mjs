@@ -631,7 +631,10 @@ function processExpand(entries, meta) {
       expand(e);
     },
     neutral_token(e) {
-      expand(e);
+      expand({
+        ...e,
+        type: 'neutral_tokens_log',
+      });
     },
   };
   for (let i = 0; i < entries.length; i += 1) {
