@@ -608,11 +608,15 @@ function processExpand(entries, meta) {
       }
     },
     obs(e) {
-      expand({ ...e, type: 'obs', posData: true });
+      if (e.x && e.y) {
+        expand({ ...e, type: 'obs', posData: true });
+      }
       expand({ ...e, type: 'obs_log' });
     },
     sen(e) {
-      expand({ ...e, type: 'sen', posData: true });
+      if (e.x && e.y) {
+        expand({ ...e, type: 'sen', posData: true });
+      }
       expand({ ...e, type: 'sen_log' });
     },
     obs_left(e) {

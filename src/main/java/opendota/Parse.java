@@ -747,9 +747,11 @@ public class Parse {
 
                         Float vx = getEntityProperty(e, "CBodyComponent.m_vecX", null);
                         Float vy = getEntityProperty(e, "CBodyComponent.m_vecY", null);
-
-                        entry.x = getPreciseLocation(cx,vx);
-                        entry.y = getPreciseLocation(cy,vy);
+                        
+                        if (cx != null && cy != null) {
+                            entry.x = getPreciseLocation(cx,vx);
+                            entry.y = getPreciseLocation(cy,vy);
+                        }
                         // System.err.format("%s, %s\n", entry.x, entry.y);
                         // get the hero's entity name, ex: CDOTA_Hero_Zuus
                         entry.unit = e.getDtClass().getDtName();
@@ -991,9 +993,11 @@ public class Parse {
 
         Integer life_state = getEntityProperty(e, "m_lifeState", null);
 
-        entry.x = getPreciseLocation(cx,vx);
-        entry.y = getPreciseLocation(cy,vy);
-        entry.z = getPreciseLocation(cz,vz);
+        if (cx != null && cy != null && cz != null) {
+            entry.x = getPreciseLocation(cx,vx);
+            entry.y = getPreciseLocation(cy,vy);
+            entry.z = getPreciseLocation(cz,vz);
+        }
 
         entry.type = isObserver ? "obs" : "sen";
         entry.entityleft = life_state == 1;
