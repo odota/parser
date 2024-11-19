@@ -152,7 +152,7 @@ class RegisterTask extends TimerTask
                 String ip = "";
                 if (System.getenv().containsKey("EXTERNAL")) {
                     // If configured as external, request external IP and report it
-                    ip = RegisterTask.shellExec("curl api.ipify.org");
+                    ip = RegisterTask.shellExec("curl " + System.getenv().get("SERVICE_REGISTRY_HOST") + "/ip");
                 } else {
                     // Otherwise, use hostname -i to get internal IP
                     ip = RegisterTask.shellExec("hostname -i");
