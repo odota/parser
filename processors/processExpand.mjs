@@ -640,6 +640,9 @@ function processExpand(entries, meta) {
         type: 'neutral_tokens_log',
       });
     },
+    neutral_item_history(e) {
+      expand(e)
+    },
   };
   for (let i = 0; i < entries.length; i += 1) {
     const e = entries[i];

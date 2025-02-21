@@ -61,37 +61,56 @@ function populate(e, container, meta) {
         // determine whether we want the value only (interval) or everything (log)
         // either way this creates a new value so e can be mutated later
         let arrEntry;
-        if (e.interval) {
-          arrEntry = e.value;
-        } else if (
-          e.type === 'purchase_log' ||
-          e.type === 'kills_log' ||
-          e.type === 'runes_log' ||
-          e.type === 'neutral_tokens_log'
-        ) {
-          arrEntry = {
+
+        if (e.type==='neutral_item_history') {
+          let itemName = e.key.replace(/([A-Z])/g, ($1) => `_${$1.toLowerCase()}`).toLowerCase().replace('__', '_')
+          if (itemName.startsWith('_')) {
+            itemName = itemName.replace(/^_/g, '')
+          }
+          let existedEl = t.find((el) => el.time === e.time)
+          arrEntry = existedEl ?? {
             time: e.time,
-            key: e.key,
-          };
-          const maxCharges = e.key === 'tango' ? 3 : 1;
-          if (e.type === 'purchase_log' && e.charges > maxCharges) {
+          }
+          arrEntry.item_neutral = e.isNeutralActiveDrop ? itemName : (arrEntry.item_neutral ?? null)
+          arrEntry.item_neutral_enchant = e.isNeutralPassiveDrop ? itemName : (arrEntry.item_neutral_enchant ?? null)
+          if (existedEl) {
+            existedEl = arrEntry
+          } else {
+            t.push(arrEntry)
+          }
+        } else {
+          if (e.interval) {
+            arrEntry = e.value;
+          } else if (
+            e.type === 'purchase_log' ||
+            e.type === 'kills_log' ||
+            e.type === 'runes_log' ||
+            e.type === 'neutral_tokens_log'
+          ) {
             arrEntry = {
               time: e.time,
               key: e.key,
-              charges: e.charges,
             };
+            const maxCharges = e.key === 'tango' ? 3 : 1;
+            if (e.type === 'purchase_log' && e.charges > maxCharges) {
+              arrEntry = {
+                time: e.time,
+                key: e.key,
+                charges: e.charges,
+              };
+            }
+            if (e.type === 'kills_log' && e.tracked_death) {
+              arrEntry = {
+                tracked_death: e.tracked_death,
+                tracked_sourcename: e.tracked_sourcename,
+                ...arrEntry,
+              };
+            }
+          } else  {
+            arrEntry = JSON.parse(JSON.stringify(e));
           }
-          if (e.type === 'kills_log' && e.tracked_death) {
-            arrEntry = {
-              tracked_death: e.tracked_death,
-              tracked_sourcename: e.tracked_sourcename,
-              ...arrEntry,
-            };
-          }
-        } else {
-          arrEntry = JSON.parse(JSON.stringify(e));
+          t.push(arrEntry);
         }
-        t.push(arrEntry);
       } else if (e.type === 'ability_targets') {
         // e.g. { Telekinesis: { Antimage: 1, Bristleback: 2 }, Fade Bolt: { Lion: 4, Timber: 5 }, ... }
         const ability = e.key[0];

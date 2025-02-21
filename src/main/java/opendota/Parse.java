@@ -95,6 +95,8 @@ public class Parse {
         public Integer denies;
         public Boolean entityleft;
         public Integer ehandle;
+        public Boolean isNeutralActiveDrop;
+        public Boolean isNeutralPassiveDrop;
         public Integer obs_placed;
         public Integer sen_placed;
         public Integer creeps_stacked;
@@ -494,6 +496,19 @@ public class Parse {
             entry.slot = getPlayerSlotFromEntity(ctx, e);
             entry.key = entityName.substring("CDOTA_Item_".length()); // Tier1Token
             output(entry);
+        } else if (entityName.startsWith("CDOTA_Item_")) {
+            Boolean isNeutralActiveDrop = getEntityProperty(e, "m_bIsNeutralActiveDrop", null);
+            Boolean isNeutralPassiveDrop = getEntityProperty(e, "m_bIsNeutralPassiveDrop", null);
+            if ((isNeutralActiveDrop != null && isNeutralActiveDrop) || (isNeutralPassiveDrop != null && isNeutralPassiveDrop == true)) {
+                Entry entry = new Entry(time);
+                entry.type = "neutral_item_history";
+                entry.slot = getPlayerSlotFromEntity(ctx, e);
+                entry.key = entityName.substring("CDOTA_Item_".length());
+                entry.isNeutralActiveDrop = isNeutralActiveDrop;
+                entry.isNeutralPassiveDrop = isNeutralPassiveDrop;
+                // System.out.println(new Gson().toJson(entry));
+                output(entry);
+            }
         }
     }
 
