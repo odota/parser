@@ -72,7 +72,7 @@ function populate(e, container, meta) {
             time: e.time,
           }
           arrEntry.item_neutral = e.isNeutralActiveDrop ? itemName : (arrEntry.item_neutral ?? null)
-          arrEntry.item_neutral_enchant = e.isNeutralPassiveDrop ? itemName : (arrEntry.item_neutral_enchant ?? null)
+          arrEntry.item_neutral_enhancement = e.isNeutralPassiveDrop ? itemName : (arrEntry.item_neutral_enhancement ?? null)
           if (existedEl) {
             existedEl = arrEntry
           } else {
