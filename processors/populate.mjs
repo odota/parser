@@ -63,7 +63,7 @@ function populate(e, container, meta) {
         let arrEntry;
 
         if (e.type==='neutral_item_history') {
-          let itemName = e.key.replace(/([A-Z])/g, ($1) => `_${$1.toLowerCase()}`).toLowerCase().replace('__', '_')
+          let itemName = e.key.replace(/([A-Z])/g, ($1) => `_${$1.toLowerCase()}`).toLowerCase().replaceAll('__', '_')
           if (itemName.startsWith('_')) {
             itemName = itemName.replace(/^_/g, '')
           }
