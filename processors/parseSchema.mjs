@@ -1,5 +1,5 @@
 export default {
-  version: 21,
+  version: 22,
   match_id: 0,
   draft_timings: [],
   teamfights: [],
