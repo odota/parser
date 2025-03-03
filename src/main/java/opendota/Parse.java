@@ -884,7 +884,6 @@ public class Parse {
                 Ability ability = getHeroAbilities(ctx, eHero, i);
                 if (ability != null) {
                     abilityList.add(ability);
-
                 }
             } catch (Exception e) {
                 // System.err.println(e);
@@ -946,10 +945,19 @@ public class Parse {
         StringTable stEntityNames = ctx.getProcessor(StringTables.class).forName("EntityNames");
         Entities entities = ctx.getProcessor(Entities.class);
 
-        Integer hAbility = eHero.getProperty("m_hAbilities." + Util.arrayIdxToString(idx));
+        Integer hAbility;
+        if (eHero.hasProperty("m_hAbilities." + Util.arrayIdxToString(idx))) {
+            hAbility = eHero.getProperty("m_hAbilities." + Util.arrayIdxToString(idx));
+        } else if (eHero.hasProperty("m_vecAbilities." + Util.arrayIdxToString(idx))) {
+            hAbility = eHero.getProperty("m_vecAbilities." + Util.arrayIdxToString(idx));
+        } else {
+            hAbility = 0xFFFFFF;
+        }
+        
         if (hAbility == 0xFFFFFF) {
             return null;
         }
+        
         Entity eAbility = entities.getByHandle(hAbility);
         if (eAbility == null) {
             throw new UnknownAbilityFoundException(String.format("Can't find ability by its handle (%d)", hAbility));
@@ -975,6 +983,9 @@ public class Parse {
                 property = property.replace("%i", Util.arrayIdxToString(idx));
             }
             FieldPath fp = e.getDtClass().getFieldPathForName(property);
+            if (fp == null) {
+                return null;
+            }
             return e.getPropertyForFieldPath(fp);
         } catch (Exception ex) {
             return null;
