@@ -499,7 +499,8 @@ public class Parse {
         } else if (entityName.startsWith("CDOTA_Item_")) {
             Boolean isNeutralActiveDrop = getEntityProperty(e, "m_bIsNeutralActiveDrop", null);
             Boolean isNeutralPassiveDrop = getEntityProperty(e, "m_bIsNeutralPassiveDrop", null);
-            if ((isNeutralActiveDrop != null && isNeutralActiveDrop) || (isNeutralPassiveDrop != null && isNeutralPassiveDrop == true)) {
+            Integer neutralDropTeam = getEntityProperty(e, "m_nNeutralDropTeam", null);
+            if ((neutralDropTeam != null && neutralDropTeam != 0) && ((isNeutralActiveDrop != null && isNeutralActiveDrop) || (isNeutralPassiveDrop != null && isNeutralPassiveDrop == true))) {
                 Entry entry = new Entry(time);
                 entry.type = "neutral_item_history";
                 entry.slot = getPlayerSlotFromEntity(ctx, e);
