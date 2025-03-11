@@ -432,6 +432,7 @@ public class Parse {
             else
             {
                 combatLogEntry.ticks = serverTick-start;
+                combatLogEntry.paused = pause;
             }
             combatLogEntry.type = cle.getType().name();
             // translate the fields using string tables if necessary (get*Name methods)
@@ -581,6 +582,7 @@ public class Parse {
                     if (isDraftStarted) {
                         Entry draftStartEntry = new Entry(time);
                         draftStartEntry.ticks = serverTick;
+                        draftStartEntry.paused = pause;
                         draftStartEntry.type = "draft_start";
                         output(draftStartEntry);
                         isDraftStartTimeProcessed = true;
@@ -673,6 +675,7 @@ public class Parse {
                             Entry entry = new Entry(time);
                             entry.type = "player_slot";
                             entry.ticks = serverTick;
+                            entry.paused = pause;
                             entry.key = String.valueOf(added);
                             entry.value = (playerTeam == 2 ? 0 : 128) + teamSlot;
                             playerEntries.add(entry);
