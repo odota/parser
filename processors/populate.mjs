@@ -67,6 +67,10 @@ function populate(e, container, meta) {
           if (itemName.startsWith('_')) {
             itemName = itemName.replace(/^_/g, '')
           }
+          // for whatever reason entity in replay is called CDOTA_Item_Enhancement_Timelss in replay, but everywhere else its enhancement_timeless
+          if (itemName === 'enhancement_timelss') {
+            itemName = 'enhancement_timeless'
+          }
           let existedEl = t.find((el) => el.time === e.time)
           arrEntry = existedEl ?? {
             time: e.time,
