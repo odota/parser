@@ -67,6 +67,9 @@ function populate(e, container, meta) {
           if (itemName.startsWith('_')) {
             itemName = itemName.replace(/^_/g, '')
           }
+          if (itemName === 'enhancement_timelss') {
+            itemName = 'enhancement_timeless'
+          }
           let existedEl = t.find((el) => el.time === e.time)
           arrEntry = existedEl ?? {
             time: e.time,
