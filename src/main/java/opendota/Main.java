@@ -92,6 +92,11 @@ public class Main {
                         // Parse took too long, maybe China replay?
                         status = 200;
                     }
+                    if (error.toString().contains("curl: (22) The requested URL returned error: 502")) {
+                        // Google-Edge-Cache: origin retries exhausted Error: 2010
+                        // Server error, don't retry
+                        status = 200;
+                    }
                     if (error.toString().contains("bunzip2: Data integrity error when decompressing")) {
                         // Corrupted replay, don't retry
                         status = 200;
