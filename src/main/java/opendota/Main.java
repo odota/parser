@@ -162,7 +162,7 @@ class RegisterTask extends TimerTask
                     // Otherwise, use hostname -i to get internal IP
                     ip = RegisterTask.shellExec("hostname -i");
                 }
-                int nproc = Runtime.getRuntime().availableProcessors() * 1.5;
+                int nproc = Math.round(Runtime.getRuntime().availableProcessors() * 1.5);
                 String postCmd = "curl -X POST --max-time 60 -L " + System.getenv().get("SERVICE_REGISTRY_HOST") + "/register/parser/" + ip + ":5600" + "?size=" + nproc + "&key=" + System.getenv().get("RETRIEVER_SECRET");
                 System.err.println(postCmd);
                 RegisterTask.shellExec(postCmd);
