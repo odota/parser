@@ -83,6 +83,7 @@ public class Parse {
         public Float stuns;
         public Integer hero_id;
         public Integer variant;
+        public Integer facet_hero_id;
         public transient List<Item> hero_inventory;
         public Integer itemslot;
         public Integer charges;
@@ -704,10 +705,13 @@ public class Parse {
                 // System.err.println(pr);
                 for (int i = 0; i < numPlayers; i++) {
                     Integer hero = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_nSelectedHeroID", validIndices[i]);
-                    Integer variant = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_nSelectedHeroVariant", validIndices[i]);
                     int handle = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_hSelectedHero", validIndices[i]);
                     int playerTeam = getEntityProperty(pr, "m_vecPlayerData.%i.m_iPlayerTeam", validIndices[i]);
                     int teamSlot = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iTeamSlot", validIndices[i]);
+
+                    // facet/variant format and key location changed in 7.39, leaving this as a fallback
+                    Integer variant = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_nSelectedHeroVariant", validIndices[i]);
+                    Integer facet_hero_id = null;
 
                     // 2 is radiant, 3 is dire, 1 is other?
                     Entity dataTeam = playerTeam == 2 ? rData : dData;
@@ -768,11 +772,23 @@ public class Parse {
                             entry.x = getPreciseLocation(cx,vx);
                             entry.y = getPreciseLocation(cy,vy);
                         }
+
+                        // post-7.39 format for facets is a 128bit number, where last 32 bits represent the variant
+                        // and the first 32 bits represent the hero id, which acts as the source for the facet
+                        // (same as hero_id in all cases, except ability draft)
+                        // 0xHHHH00000000VVVV
+                        Long facet_key = getEntityProperty(e, "m_iHeroFacetKey", null);
+                        if (facet_key != null) {
+                            facet_hero_id = (int) (facet_key >> (4 * 8));
+                            variant = (int) (facet_key & 0xFF);
+                        }
+
                         // System.err.format("%s, %s\n", entry.x, entry.y);
                         // get the hero's entity name, ex: CDOTA_Hero_Zuus
                         entry.unit = e.getDtClass().getDtName();
                         entry.hero_id = hero;
                         entry.variant = variant;
+                        entry.facet_hero_id = facet_hero_id;
                         entry.life_state = getEntityProperty(e, "m_lifeState", null);
                         // check if hero has been assigned to entity
                         if (hero > 0) {
