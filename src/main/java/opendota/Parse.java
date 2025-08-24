@@ -200,6 +200,11 @@ public class Parse {
 
     boolean isDotaPlusProcessed = false;
 
+    // Variables to track pause timings
+    boolean wasPaused = false;
+    int pauseStartTime = 0;
+    int pauseStartGameTime = 0;
+
     public Parse(InputStream input, OutputStream output) throws IOException {
         greevilsGreedVisitor = new GreevilsGreedVisitor(name_to_slot);
         trackVisitor = new TrackVisitor();
@@ -562,6 +567,26 @@ public class Parse {
                 int timeTick = isPaused ? getEntityProperty(grp, "m_pGameRules.m_nPauseStartTick", null) : serverTick;
                 int pausedTicks = getEntityProperty(grp, "m_pGameRules.m_nTotalPausedTicks", null);
                 time = Math.round((float) (timeTick - pausedTicks) / 30);
+
+                // Tracking game pauses
+                if (isPaused && !wasPaused) {
+                    // Game just got paused
+                    pauseStartTime = timeTick;
+                    pauseStartGameTime = time;
+                    wasPaused = true;
+                } else if (!isPaused && wasPaused) {
+                    // Game just got unpaused
+                    int pauseDuration = Math.round((float) (timeTick - pauseStartTime) / 30);
+                    if (pauseDuration > 0) {
+                        Entry pauseEntry = new Entry(pauseStartGameTime);
+                        pauseEntry.type = "game_paused";
+                        pauseEntry.key = "pause_duration";
+                        pauseEntry.value = pauseDuration;
+                        output(pauseEntry);
+                    }
+                    wasPaused = false;
+                }
+
             } else {
                 time = Math.round(oldTime);
             }
