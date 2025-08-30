@@ -6,7 +6,7 @@ import processParsedData from './processParsedData.mjs';
 import processMetadata from './processMetadata.mjs';
 import processExpand from './processExpand.mjs';
 import processDraftTimings from './processDraftTimings.mjs';
-import processPauseTimes from './processPauseTimes.mjs';
+import processPauses from './processPauses.mjs';
 import parseSchema from './parseSchema.mjs';
 
 function createParsedDataBlob(entries, matchId) {
@@ -27,9 +27,9 @@ function createParsedDataBlob(entries, matchId) {
   logConsole.time('draft');
   parsedData.draft_timings = processDraftTimings(entries, meta);
   logConsole.timeEnd('draft');
-  logConsole.time('pause_times');
-  parsedData.pause_times = processPauseTimes(entries);
-  logConsole.timeEnd('pause_times');
+  logConsole.time('pauses');
+  parsedData.pauses = processPauses(entries);
+  logConsole.timeEnd('pauses');
   logConsole.time('processAllPlayers');
   const ap = processAllPlayers(entries, meta);
   logConsole.timeEnd('processAllPlayers');
