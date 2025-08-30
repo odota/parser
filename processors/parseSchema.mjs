@@ -7,7 +7,7 @@ export default {
   chat: [],
   radiant_gold_adv: [],
   radiant_xp_adv: [],
-  game_paused_timings: [],
+  pause_times: [],
   cosmetics: {},
   players: Array(...new Array(10)).map(() => ({
     player_slot: 0,
