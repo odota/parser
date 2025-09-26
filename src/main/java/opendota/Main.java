@@ -101,6 +101,10 @@ public class Main {
                         // Corrupted replay, don't retry
                         status = 200;
                     }
+                    if (error.toString().contains("bunzip2: Compressed file ends unexpectedly")) {
+                        // Corrupted replay, don't retry
+                        status = 200;
+                    }
                     if (error.toString().contains("bunzip2: (stdin) is not a bzip2 file.")) {
                         // Tried to unzip a non-bz2 file
                         status = 200;
