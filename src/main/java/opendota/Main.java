@@ -69,7 +69,7 @@ public class Main {
             try {
                 Map<String, String> query = splitQuery(t.getRequestURI());
                 URL replayUrl = new URL(query.get("replay_url"));
-                String cmd = String.format("curl --max-time 180 --fail -L %s | %s | curl -X POST -T - localhost:5600 | node processors/createParsedDataBlob.mjs",
+                String cmd = String.format("curl --max-time 145 --fail -L %s | %s | curl -X POST -T - localhost:5600 | node processors/createParsedDataBlob.mjs",
                     replayUrl, 
                     replayUrl.toString().endsWith(".bz2") ? "bunzip2" : "cat"
                 );
