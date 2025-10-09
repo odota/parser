@@ -478,6 +478,14 @@ function processExpand(entries, meta) {
         team: e.player1,
       });
     },
+    CHAT_MESSAGE_MINIBOSS_KILL(e) {
+      expand({
+        time: e.time,
+        type: e.type,
+        slot: e.player1,
+        team: e.value,
+      });
+    },
     CHAT_MESSAGE_COURIER_LOST(e) {
       let team;
       let killer;
@@ -649,7 +657,7 @@ function processExpand(entries, meta) {
     if (types[e.type]) {
       types[e.type](e);
     } else {
-      // console.log('parser emitted unhandled type: %s', e.type);
+      //console.log('parser emitted unhandled type: %s at %s', e.type, e.time);
     }
   }
   return output;
