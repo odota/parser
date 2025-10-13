@@ -20,6 +20,7 @@ function populate(e, container, meta) {
     case 'CHAT_MESSAGE_AEGIS_STOLEN':
     case 'CHAT_MESSAGE_DENIED_AEGIS':
     case 'CHAT_MESSAGE_ROSHAN_KILL':
+    case 'CHAT_MESSAGE_MINIBOSS_KILL':
     case 'building_kill':
       container.objectives.push(JSON.parse(JSON.stringify(e)));
       break;
