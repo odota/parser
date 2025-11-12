@@ -47,6 +47,9 @@ public class Parse {
 
     public class Entry {
         public Integer time = 0;
+        public Integer ticks = 0;
+        public Integer paused = 0;
+        public Float oldTime;
         public String type;
         public Integer team;
         public String unit;
@@ -89,6 +92,7 @@ public class Parse {
         public Integer charges;
         public Integer secondary_charges;
         public Integer life_state;
+        public Integer hp;
         public Integer level;
         public Integer kills;
         public Integer deaths;
@@ -169,6 +173,7 @@ public class Parse {
     float INTERVAL = 1;
     float nextInterval = 0;
     Integer time = 0;
+    Integer pause = 0;
     int numPlayers = 10;
     int[] validIndices = new int[numPlayers];
     boolean init = false;
@@ -192,6 +197,7 @@ public class Parse {
     int pingCount = 0;
     private ArrayList<Entry> logBuffer = new ArrayList<Entry>();
     int serverTick = 0;
+    int start = 0;
 
     // Draft stage variable
     boolean[] draftOrderProcessed = new boolean[24];
@@ -427,6 +433,15 @@ public class Parse {
             time = Math.round(cle.getTimestamp());
             // create a new entry
             Entry combatLogEntry = new Entry(time);
+            if(start == 0) 
+            {
+            	start = serverTick;
+            }
+            else
+            {
+                combatLogEntry.ticks = serverTick-start;
+                combatLogEntry.paused = pause;
+            }
             combatLogEntry.type = cle.getType().name();
             // translate the fields using string tables if necessary (get*Name methods)
             combatLogEntry.attackername = cle.getAttackerName();
@@ -566,6 +581,7 @@ public class Parse {
                 boolean isPaused = getEntityProperty(grp, "m_pGameRules.m_bGamePaused", null);
                 int timeTick = isPaused ? getEntityProperty(grp, "m_pGameRules.m_nPauseStartTick", null) : serverTick;
                 int pausedTicks = getEntityProperty(grp, "m_pGameRules.m_nTotalPausedTicks", null);
+                pause = pausedTicks;
                 time = Math.round((float) (timeTick - pausedTicks) / 30);
 
                 // Tracking game pauses
@@ -607,6 +623,8 @@ public class Parse {
                     boolean isDraftStarted = iPlayerIDsInControl.compareTo(Long.valueOf(0)) != 0;
                     if (isDraftStarted) {
                         Entry draftStartEntry = new Entry(time);
+                        draftStartEntry.ticks = serverTick;
+                        draftStartEntry.paused = pause;
                         draftStartEntry.type = "draft_start";
                         output(draftStartEntry);
                         isDraftStartTimeProcessed = true;
@@ -698,9 +716,12 @@ public class Parse {
                             // output the player_slot based on team and teamslot
                             Entry entry = new Entry(time);
                             entry.type = "player_slot";
+                            entry.ticks = serverTick;
+                            entry.paused = pause;
                             entry.key = String.valueOf(added);
                             entry.value = (playerTeam == 2 ? 0 : 128) + teamSlot;
                             playerEntries.add(entry);
+                            if( start == 0) start = serverTick;
                             // add it to validIndices, add 1 to added
                             validIndices[added] = i;
                             added += 1;
@@ -815,6 +836,13 @@ public class Parse {
                         entry.variant = variant;
                         entry.facet_hero_id = facet_hero_id;
                         entry.life_state = getEntityProperty(e, "m_lifeState", null);
+                        entry.hp = getEntityProperty(e, "m_iHealth", null);
+                        entry.ticks = serverTick-start;
+                        entry.paused = pause;
+                        entry.oldTime = getEntityProperty(grp, "m_pGameRules.m_fGameTime", null);
+
+
+
                         // check if hero has been assigned to entity
                         if (hero > 0) {
                             // get the hero's entity name, ex: CDOTA_Hero_Zuus
