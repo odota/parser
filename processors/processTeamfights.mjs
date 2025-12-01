@@ -60,7 +60,7 @@ function processTeamfights(entries, meta) {
   teamfights.forEach((tf) => {
     tf.players.forEach((p, ind) => {
       // record player's start/end xp for level change computation
-      if (intervalState[tf.start] && intervalState[tf.end]) {
+      if (intervalState[tf.start]?.[ind] && intervalState[tf.end]?.[ind]) {
         p.xp_start = intervalState[tf.start][ind].xp;
         p.xp_end = intervalState[tf.end][ind].xp;
       }
