@@ -184,7 +184,7 @@ class RegisterTask extends TimerTask
 
    public static String shellExec(String cmdCommand) throws IOException {
         final StringBuilder stringBuilder = new StringBuilder();
-        String[] cmdArr = { cmdCommand };
+        String[] cmdArr = cmdCommand.split(" ");
         final Process process = Runtime.getRuntime().exec(cmdArr, null, null);
         final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(process.getInputStream()));
         String line;
