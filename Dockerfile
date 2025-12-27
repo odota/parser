@@ -1,4 +1,4 @@
-FROM maven:3-openjdk-18-slim
+FROM maven:3.9.12-eclipse-temurin-21-noble
 
 RUN apt-get update
 
