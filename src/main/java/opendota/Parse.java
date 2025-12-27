@@ -662,7 +662,7 @@ public class Parse {
                             validIndices[i]);
                     Float participation = getEntityProperty(pr,
                             "m_vecPlayerTeamData.%i.m_flTeamFightParticipation", validIndices[i]);
-                    if (participation != Float.POSITIVE_INFINITY) {
+                    if (participation != null && participation != Float.POSITIVE_INFINITY) {
                         entry.teamfight_participation = participation;
                     }
                     entry.level = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iLevel", validIndices[i]);
