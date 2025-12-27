@@ -87,7 +87,7 @@ function processTeamfights(entries, meta) {
             const { x, y } = intervalState[r.time][r.slot];
             // fill in the copy
             r.type = 'deaths_pos';
-            r.key = JSON.stringify([x, y]);
+            r.key = JSON.stringify([Math.round(x), Math.round(y)]);
             r.posData = true;
             populate(r, tf);
             // increment death count for this hero

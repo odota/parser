@@ -22,7 +22,11 @@ function populate(e, container, meta) {
     case 'CHAT_MESSAGE_ROSHAN_KILL':
     case 'CHAT_MESSAGE_MINIBOSS_KILL':
     case 'building_kill':
-      container.objectives.push(JSON.parse(JSON.stringify(e)));
+      const copy = JSON.parse(JSON.stringify(e));
+      if (copy.key) {
+        copy.key = String(copy.key);
+      }
+      container.objectives.push(copy);
       break;
     case 'ability_levels':
       meta.ability_levels[e.unit] = {
@@ -94,7 +98,7 @@ function populate(e, container, meta) {
           ) {
             arrEntry = {
               time: e.time,
-              key: e.key,
+              key: String(e.key),
             };
             const maxCharges = e.key === 'tango' ? 3 : 1;
             if (e.type === 'purchase_log' && e.charges > maxCharges) {
@@ -141,7 +145,7 @@ function populate(e, container, meta) {
         t[ability][target] += damage;
       } else if (typeof t === 'object') {
         // add it to hash of counts
-        e.value = e.value || 1;
+        e.value = e.value != null ? e.value : 1;
         if (t[e.key]) {
           t[e.key] += e.value;
         } else {

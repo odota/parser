@@ -25,7 +25,7 @@ function createParsedDataBlob(entries, matchId) {
   parsedData.teamfights = processTeamfights(expanded, meta);
   logConsole.timeEnd('teamfights');
   logConsole.time('draft');
-  parsedData.draft_timings = processDraftTimings(entries, meta);
+  parsedData.draft_timings = [];
   logConsole.timeEnd('draft');
   logConsole.time('pauses');
   parsedData.pauses = processPauses(entries);

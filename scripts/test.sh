@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#curl localhost:5600 --data-binary "@/datadrive/odota-parser/7355186741_1742953546.dem"
-#curl localhost:5600 --data-binary "@/datadrive/odota-parser/6298221747_1156784242.dem"
+curl localhost:5600 --data-binary "@/home/howardc/parser/8583844960_1679394786.dem"
+curl "localhost:5600?blob" --data-binary "@/home/howardc/parser/8583844960_1679394786.dem"
 
-curl localhost:5600/blob?replay_url=http://replay185.valve.net/570/8583844960_1679394786.dem.bz2
+curl localhost:5600/blob?replay_url=http://replay271.valve.net/570/8623065989_1426557301.dem.bz2

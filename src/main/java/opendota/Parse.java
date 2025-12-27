@@ -8,7 +8,6 @@ import skadistats.clarity.model.FieldPath;
 import skadistats.clarity.model.StringTable;
 import skadistats.clarity.processor.entities.Entities;
 import skadistats.clarity.processor.entities.OnEntityEntered;
-import skadistats.clarity.processor.entities.OnEntityLeft;
 import skadistats.clarity.processor.entities.UsesEntities;
 import skadistats.clarity.processor.gameevents.OnCombatLogEntry;
 import skadistats.clarity.processor.reader.OnMessage;
@@ -45,107 +44,8 @@ import opendota.processors.warding.OnWardPlaced;
 
 public class Parse {
 
-    public class Entry {
-        public Integer time = 0;
-        public String type;
-        public Integer team;
-        public String unit;
-        public String key;
-        public Integer value;
-        public Integer slot;
-        public Integer player_slot;
-        // chat event fields
-        public Integer player1;
-        public Integer player2;
-        // combat log fields
-        public String attackername;
-        public String targetname;
-        public String sourcename;
-        public String targetsourcename;
-        public Boolean attackerhero;
-        public Boolean targethero;
-        public Boolean attackerillusion;
-        public Boolean targetillusion;
-        public Integer abilitylevel;
-        public String inflictor;
-        public Integer gold_reason;
-        public Integer xp_reason;
-        public String valuename;
-        // public Float stun_duration;
-        // public Float slow_duration;
-        // entity fields
-        public Integer gold;
-        public Integer lh;
-        public Integer xp;
-        public Float x;
-        public Float y;
-        public Float z;
-        public Float stuns;
-        public Integer hero_id;
-        public Integer variant;
-        public Integer facet_hero_id;
-        public transient List<Item> hero_inventory;
-        public Integer itemslot;
-        public Integer charges;
-        public Integer secondary_charges;
-        public Integer life_state;
-        public Integer level;
-        public Integer kills;
-        public Integer deaths;
-        public Integer assists;
-        public Integer denies;
-        public Boolean entityleft;
-        public Integer ehandle;
-        public Boolean isNeutralActiveDrop;
-        public Boolean isNeutralPassiveDrop;
-        public Integer obs_placed;
-        public Integer sen_placed;
-        public Integer creeps_stacked;
-        public Integer camps_stacked;
-        public Integer rune_pickups;
-        public Boolean repicked;
-        public Boolean randomed;
-        public Boolean pred_vict;
-        public Float stun_duration;
-        public Float slow_duration;
-        public Boolean tracked_death;
-        public Integer greevils_greed_stack;
-        public String tracked_sourcename;
-        public Integer firstblood_claimed;
-        public Float teamfight_participation;
-        public Integer towers_killed;
-        public Integer roshans_killed;
-        public Integer observers_placed;
-        public Integer draft_order;
-        public Boolean pick;
-        public Integer draft_active_team;
-        public Integer draft_extime0;
-        public Integer draft_extime1;
-        public Integer networth;
-        public Integer stage;
-
-        public Entry() {
-        }
-
-        public Entry(Integer time) {
-            this.time = time;
-        }
-    }
-
     private Float getPreciseLocation (Integer cell, Float vec) {
       return (cell*128.0f+vec)/128;
-    }
-
-    private class Item {
-        String id;
-        // Charges can be used to determine how many items are stacked together on
-        // stackable items
-        Integer slot;
-        Integer num_charges;
-        // item_ward_dispenser uses num_charges for observer wards
-        // and num_secondary_charges for sentry wards count
-        // and is considered not stackable
-        Integer num_secondary_charges;
     }
 
     private class Ability {
@@ -205,32 +105,42 @@ public class Parse {
     int pauseStartTime = 0;
     int pauseStartGameTime = 0;
 
-    public Parse(InputStream input, OutputStream output) throws IOException {
+    boolean doBlob = false;
+    List<Entry> finalList = new ArrayList<Entry>();
+
+    public Parse(InputStream input, OutputStream output, boolean blob) throws IOException {
         greevilsGreedVisitor = new GreevilsGreedVisitor(name_to_slot);
         trackVisitor = new TrackVisitor();
 
         is = input;
         os = output;
+        doBlob = blob;
         isPlayerStartingItemsWritten = new ArrayList<>(Arrays.asList(new Boolean[numPlayers]));
         Collections.fill(isPlayerStartingItemsWritten, Boolean.FALSE);
         long tStart = System.currentTimeMillis();
         new SimpleRunner(new InputStreamSource(is)).runWith(this);
-        long tMatch = System.currentTimeMillis() - tStart;
-        System.err.format("total time taken: %s\n", (tMatch) / 1000.0);
+        long tEnd = System.currentTimeMillis();
+        System.err.format("parse: %sms\n", tEnd - tStart);
+        if (doBlob) {
+            if (!epilogue) {
+                throw new RuntimeException("no epilogue");
+            }
+            os.write(g.toJson(new CreateParsedDataBlob().createParsedDataBlob(this.finalList)).getBytes());
+        } else {
+            for (Entry e : finalList) {
+                os.write((g.toJson(e) + "\n").getBytes());
+            }
+        }
     }
 
     public void output(Entry e) {
-        try {
-            if (!epilogue && gameStartTime == 0 && logBuffer != null) {
-                logBuffer.add(e);
-            } else {
-                e.time -= gameStartTime;
-                this.os.write((g.toJson(e) + "\n").getBytes());
-            }
-        } catch (IOException ex) {
-            // System.err.println(ex);
-        } catch (IllegalArgumentException iex) {
-            System.err.println(iex);
+        if (!epilogue && gameStartTime == 0 && logBuffer != null) {
+            logBuffer.add(e);
+        } else {
+            e.time -= gameStartTime;
+            finalList.add(e);
+            // TODO if we don't want to buffer the entire log in memory and aren't assembling blob we can write to output directly here
+            // os.write((g.toJson(e) + "\n").getBytes());
         }
     }
 
@@ -750,9 +660,11 @@ public class Parse {
                             validIndices[i]);
                     entry.firstblood_claimed = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iFirstBloodClaimed",
                             validIndices[i]);
-                    entry.teamfight_participation = getEntityProperty(pr,
+                    Float participation = getEntityProperty(pr,
                             "m_vecPlayerTeamData.%i.m_flTeamFightParticipation", validIndices[i]);
-                    ;
+                    if (participation != Float.POSITIVE_INFINITY) {
+                        entry.teamfight_participation = participation;
+                    }
                     entry.level = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iLevel", validIndices[i]);
                     entry.kills = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iKills", validIndices[i]);
                     entry.deaths = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iDeaths", validIndices[i]);

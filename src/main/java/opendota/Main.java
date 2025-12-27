@@ -43,7 +43,7 @@ public class Main {
             InputStream is = t.getRequestBody();
             OutputStream os = t.getResponseBody();
             try {
-            	new Parse(is, os);
+            	new Parse(is, os, t.getRequestURI().getRawQuery() != null ? t.getRequestURI().getRawQuery().contains("blob") : false);
             }
             catch (Exception e)
             {
@@ -68,10 +68,16 @@ public class Main {
         public void handle(HttpExchange t) throws IOException {
             try {
                 Map<String, String> query = splitQuery(t.getRequestURI());
-                URL replayUrl = new URL(query.get("replay_url"));
-                String cmd = String.format("curl --max-time 145 --fail -L %s | %s | curl -X POST -T - localhost:5600 | node processors/createParsedDataBlob.mjs",
-                    replayUrl, 
-                    replayUrl.toString().endsWith(".bz2") ? "bunzip2" : "cat"
+                URL replayUrl = URI.create(query.get("replay_url")).toURL();
+                // boolean v2 = t.getRequestURI().getRawQuery() != null ? t.getRequestURI().getRawQuery().contains("v2") : false;
+                boolean v2 = true;
+                String cmd = String.format("""
+                    curl --max-time 145 --fail -L %s | %s | curl -X POST -T - "localhost:5600%s" %s
+                """,
+                    replayUrl,
+                    replayUrl.toString().endsWith(".bz2") ? "bunzip2" : "cat",
+                    v2 ? "?blob" : "",
+                    v2 ? "" : " | node processors/createParsedDataBlob.mjs"
                 );
                 System.err.println(cmd);
                 // Download, unzip, parse, aggregate
@@ -178,7 +184,8 @@ class RegisterTask extends TimerTask
 
    public static String shellExec(String cmdCommand) throws IOException {
         final StringBuilder stringBuilder = new StringBuilder();
-        final Process process = Runtime.getRuntime().exec(cmdCommand);
+        String[] cmdArr = { cmdCommand };
+        final Process process = Runtime.getRuntime().exec(cmdArr, null, null);
         final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(process.getInputStream()));
         String line;
         while ((line = bufferedReader.readLine()) != null) {
