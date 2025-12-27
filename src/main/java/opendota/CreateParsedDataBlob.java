@@ -147,34 +147,34 @@ public class CreateParsedDataBlob {
         Metadata meta = processMetadata(entries);
         long tEnd = System.currentTimeMillis();
         System.err.format("metadata: %sms\n", tEnd - tStart);
-        
+
         tStart = System.currentTimeMillis();
         List<Entry> expanded = processExpand(entries, meta);
         tEnd = System.currentTimeMillis();
         System.err.format("expand: %sms\n", tEnd - tStart);
-        
+
         tStart = System.currentTimeMillis();
         ParsedData parsedData = processParsedData(expanded, new ParsedData(), meta);
         tEnd = System.currentTimeMillis();
         System.err.format("populate: %sms\n", tEnd - tStart);
-        
+
         tStart = System.currentTimeMillis();
         parsedData.teamfights = processTeamfights(expanded, meta);
         tEnd = System.currentTimeMillis();
         System.err.format("teamfights: %sms\n", tEnd - tStart);
-        
+
         tStart = System.currentTimeMillis();
         parsedData.pauses = processPauses(entries);
         tEnd = System.currentTimeMillis();
         System.err.format("pauses: %sms\n", tEnd - tStart);
-        
+
         tStart = System.currentTimeMillis();
         AllPlayersResult ap = processAllPlayers(entries, meta);
         parsedData.radiant_gold_adv = ap.radiantGoldAdv;
         parsedData.radiant_xp_adv = ap.radiantXpAdv;
         tEnd = System.currentTimeMillis();
         System.err.format("processAllPlayers: %sms\n", tEnd - tStart);
-        
+
         return parsedData;
     }
 
@@ -213,7 +213,8 @@ public class CreateParsedDataBlob {
                 container.chat.add(deepCopy(e, Entry.class));
                 break;
             case "cosmetics":
-                Type mapType = new TypeToken<Map<String, Integer>>() {}.getType();
+                Type mapType = new TypeToken<Map<String, Integer>>() {
+                }.getType();
                 container.cosmetics = g.fromJson(e.key, mapType);
                 break;
             case "CHAT_MESSAGE_FIRSTBLOOD":
@@ -395,7 +396,6 @@ public class CreateParsedDataBlob {
         Map<String, Integer> targets = player.damage_targets.get(ability);
         targets.put(target, targets.getOrDefault(target, 0) + e.value);
     }
-
 
     private void handleMapField(Entry e, PlayerData player, ParsedData container, Metadata meta) {
         Map<String, Integer> targetMap = getPlayerMap(player, e.type);
@@ -1495,7 +1495,7 @@ public class CreateParsedDataBlob {
 
     public Entry shallowCopy(Entry entry) {
         try {
-            return (Entry)entry.clone();
+            return (Entry) entry.clone();
         } catch (CloneNotSupportedException ex) {
             throw new RuntimeException(ex);
         }
@@ -1519,41 +1519,40 @@ public class CreateParsedDataBlob {
     }
 }
 
+// public UploadProps processUploadProps(List<Entry> entries) {
+// UploadProps container = new UploadProps();
+// container.playerMap = new HashMap<>();
 
-    // public UploadProps processUploadProps(List<Entry> entries) {
-    // UploadProps container = new UploadProps();
-    // container.playerMap = new HashMap<>();
+// for (Entry e : entries) {
+// switch (e.type) {
+// case "epilogue":
+// try {
+// JsonNode json = mapper.readTree(e.key);
+// JsonNode dota = json.get("gameInfo_").get("dota_");
+// container.matchId = dota.get("matchId_").asLong();
+// container.gameMode = dota.get("gameMode_").asInt();
+// container.radiantWin = dota.get("gameWinner_").asInt() == 2;
+// } catch (Exception ex) {
+// ex.printStackTrace();
+// }
+// break;
+// case "interval":
+// if (!container.playerMap.containsKey(e.playerSlot)) {
+// container.playerMap.put(e.playerSlot, new UploadPlayerData());
+// }
+// UploadPlayerData playerData = container.playerMap.get(e.playerSlot);
+// playerData.heroId = e.heroId;
+// playerData.level = e.level;
+// playerData.kills = e.kills;
+// playerData.deaths = e.deaths;
+// playerData.assists = e.assists;
+// playerData.denies = e.denies;
+// playerData.lastHits = e.lh;
+// playerData.gold = e.gold;
+// playerData.xp = e.xp;
+// break;
+// }
+// }
 
-    // for (Entry e : entries) {
-    // switch (e.type) {
-    // case "epilogue":
-    // try {
-    // JsonNode json = mapper.readTree(e.key);
-    // JsonNode dota = json.get("gameInfo_").get("dota_");
-    // container.matchId = dota.get("matchId_").asLong();
-    // container.gameMode = dota.get("gameMode_").asInt();
-    // container.radiantWin = dota.get("gameWinner_").asInt() == 2;
-    // } catch (Exception ex) {
-    // ex.printStackTrace();
-    // }
-    // break;
-    // case "interval":
-    // if (!container.playerMap.containsKey(e.playerSlot)) {
-    // container.playerMap.put(e.playerSlot, new UploadPlayerData());
-    // }
-    // UploadPlayerData playerData = container.playerMap.get(e.playerSlot);
-    // playerData.heroId = e.heroId;
-    // playerData.level = e.level;
-    // playerData.kills = e.kills;
-    // playerData.deaths = e.deaths;
-    // playerData.assists = e.assists;
-    // playerData.denies = e.denies;
-    // playerData.lastHits = e.lh;
-    // playerData.gold = e.gold;
-    // playerData.xp = e.xp;
-    // break;
-    // }
-    // }
-
-    // return container;
-    // }
+// return container;
+// }
