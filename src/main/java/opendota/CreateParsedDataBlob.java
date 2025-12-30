@@ -478,9 +478,9 @@ public class CreateParsedDataBlob {
                     }
                     break;
                 case "DOTA_COMBATLOG_DEATH":
-                    Object[] result = handleDeathCombat(e, output, meta, aegisHolder, aegisDeathTime);
-                    aegisHolder = (Integer) result[0];
-                    aegisDeathTime = (Integer) result[1];
+                    Integer[] result = handleDeathCombat(e, output, meta, aegisHolder, aegisDeathTime);
+                    aegisHolder = result[0];
+                    aegisDeathTime = result[1];
                     break;
                 case "DOTA_COMBATLOG_ABILITY":
                     handleAbility(e, output, meta);
@@ -669,7 +669,7 @@ public class CreateParsedDataBlob {
         expand(heal, output, meta);
     }
 
-    private Object[] handleDeathCombat(Entry e, List<Entry> output, Metadata meta,
+    private Integer[] handleDeathCombat(Entry e, List<Entry> output, Metadata meta,
             Integer aegisHolder, Integer aegisDeathTime) {
         String unit = e.sourcename;
         String key = computeIllusionString(e.targetname, e.targetillusion);
@@ -689,18 +689,18 @@ public class CreateParsedDataBlob {
         if (slotForKey != null && slotForKey.equals(aegisHolder)) {
             if (aegisDeathTime == null) {
                 aegisDeathTime = e.time;
-                return new Object[] { aegisHolder, aegisDeathTime };
+                return new Integer[] { aegisHolder, aegisDeathTime };
             }
             if (!aegisDeathTime.equals(e.time)) {
                 aegisDeathTime = null;
                 aegisHolder = null;
             } else {
-                return new Object[] { aegisHolder, aegisDeathTime };
+                return new Integer[] { aegisHolder, aegisDeathTime };
             }
         }
 
         if (e.attackername != null && e.attackername.equals(key)) {
-            return new Object[] { aegisHolder, aegisDeathTime };
+            return new Integer[] { aegisHolder, aegisDeathTime };
         }
 
         if (e.targethero != null && e.targethero &&
@@ -734,7 +734,7 @@ public class CreateParsedDataBlob {
         killed.greevils_greed_stack = e.greevils_greed_stack;
         expand(killed, output, meta);
 
-        return new Object[] { aegisHolder, aegisDeathTime };
+        return new Integer[] { aegisHolder, aegisDeathTime };
     }
 
     private void handleAbility(Entry e, List<Entry> output, Metadata meta) {

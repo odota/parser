@@ -117,10 +117,7 @@ public class Parse {
         doBlob = blob;
         isPlayerStartingItemsWritten = new ArrayList<>(Arrays.asList(new Boolean[numPlayers]));
         Collections.fill(isPlayerStartingItemsWritten, Boolean.FALSE);
-        long tStart = System.currentTimeMillis();
         new SimpleRunner(new InputStreamSource(is)).runWith(this);
-        long tEnd = System.currentTimeMillis();
-        System.err.format("parse: %sms\n", tEnd - tStart);
         if (doBlob) {
             if (!epilogue) {
                 throw new RuntimeException("no epilogue");

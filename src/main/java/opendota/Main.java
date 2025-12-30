@@ -46,8 +46,12 @@ public class Main {
             t.sendResponseHeaders(200, 0);
             InputStream is = t.getRequestBody();
             OutputStream os = t.getResponseBody();
+            boolean blob = false;
+            if (t.getRequestURI().getRawQuery() != null && t.getRequestURI().getRawQuery().contains("blob")) {
+                blob = true;
+            }
             try {
-                new Parse(is, os, false);
+                new Parse(is, os, blob);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -71,25 +75,25 @@ public class Main {
             try {
                 Map<String, String> query = splitQuery(t.getRequestURI());
                 URI replayUrl = URI.create(query.get("replay_url"));
-                // boolean v2 = t.getRequestURI().getRawQuery() != null ?
-                // t.getRequestURI().getRawQuery().contains("v2") : false;
-                // boolean v2 = true;
-
                 // Get the replay as a byte[]
+                long tStart = System.currentTimeMillis();
                 HttpClient client = HttpClient.newHttpClient();
                 HttpRequest request = HttpRequest.newBuilder()
                         .timeout(Duration.ofSeconds(145))
                         .uri(replayUrl)
                         .build();
-                HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
+                HttpResponse<byte[]> response = client.send(request,
+                        HttpResponse.BodyHandlers.ofByteArray());
+                long tEnd = System.currentTimeMillis();
+                System.err.format("download: %dms\n", tEnd - tStart);
 
                 byte[] bzIn = response.body();
                 byte[] bzOut = bzIn;
 
                 if (replayUrl.toString().endsWith(".bz2")) {
+                    tStart = System.currentTimeMillis();
                     // Write byte[] to bunzip, get back decompressed byte[]
                     Process bz = new ProcessBuilder(new String[] { "bunzip2" }).start();
-                    
                     // Start separate thread so we can consume output while sending input
                     Thread thread = new Thread(() -> {
                         try {
@@ -102,79 +106,78 @@ public class Main {
                     thread.start();
 
                     bzOut = bz.getInputStream().readAllBytes();
-                    System.err.println(new String(bz.getErrorStream().readAllBytes()));
+                    String bzError = new String(bz.getErrorStream().readAllBytes());
+                    System.err.println(bzError);
+                    tEnd = System.currentTimeMillis();
+                    System.err.format("bunzip2: %dms\n", tEnd - tStart);
                 }
 
                 // Start parser with input stream created from byte[]
+                tStart = System.currentTimeMillis();
                 ByteArrayOutputStream baos2 = new ByteArrayOutputStream();
                 new Parse(new ByteArrayInputStream(bzOut), baos2, true);
                 byte[] parseOut = baos2.toByteArray();
+                tEnd = System.currentTimeMillis();
+                System.err.format("parse: %dms\n", tEnd - tStart);
 
                 t.sendResponseHeaders(200, parseOut.length);
                 t.getResponseBody().write(parseOut);
                 t.getResponseBody().close();
             } catch (Exception ex) {
-                // TODO handle timeouts and corrupted replays (don't retry in those cases)
                 ex.printStackTrace();
                 t.sendResponseHeaders(500, 0);
                 t.getResponseBody().close();
             }
-
+            // long tStart = System.currentTimeMillis();
             // String cmd = String.format("""
-            // curl --max-time 145 --fail -L %s | %s | curl -X POST -T - "localhost:5600%s"
-            // %s
-            // """,
-            // replayUrl,
-            // replayUrl.toString().endsWith(".bz2") ? "bunzip2" : "cat",
-            // v2 ? "?blob" : "",
-            // v2 ? "" : " | node processors/createParsedDataBlob.mjs"
-            // );
+            //         curl --max-time 145 --fail -L %s | %s | curl -X POST -T - "localhost:5600?blob"
+            //         """,
+            //         replayUrl.toString(),
+            //         replayUrl.toString().endsWith(".bz2") ? "bunzip2" : "cat");
             // System.err.println(cmd);
-            // // Download, unzip, parse, aggregate
-            // Process proc = new ProcessBuilder(new String[] {"bash", "-c", cmd})
-            // .start();
-            // ByteArrayOutputStream output = new ByteArrayOutputStream();
-            // ByteArrayOutputStream error = new ByteArrayOutputStream();
-            // copy(proc.getInputStream(), output);
-            // // Write error to console
-            // copy(proc.getErrorStream(), error);
-            // System.err.println(error.toString());
+            // Process proc = new ProcessBuilder(new String[] { "bash", "-c", cmd })
+            //         .start();
+            // byte[] parseOut = proc.getInputStream().readAllBytes();
+            // String error = new String(proc.getErrorStream().readAllBytes());
+            // System.err.println(error);
             // int exitCode = proc.waitFor();
-            // if (exitCode != 0) {
-            // // We can send 200 status here and no response if expected error (read the
-            // error string)
-            // // Maybe we can pass the specific error info in the response headers
-            // int status = 500;
-            // if (error.toString().contains("curl: (28) Operation timed out")) {
-            // // Parse took too long, maybe China replay?
-            // status = 200;
-            // }
-            // if (error.toString().contains("curl: (22) The requested URL returned error:
-            // 502")) {
-            // // Google-Edge-Cache: origin retries exhausted Error: 2010
-            // // Server error, don't retry
-            // status = 200;
-            // }
-            // if (error.toString().contains("bunzip2: Data integrity error when
-            // decompressing")) {
-            // // Corrupted replay, don't retry
-            // status = 200;
-            // }
-            // if (error.toString().contains("bunzip2: Compressed file ends unexpectedly"))
-            // {
-            // // Corrupted replay, don't retry
-            // status = 200;
-            // }
-            // if (error.toString().contains("bunzip2: (stdin) is not a bzip2 file.")) {
-            // // Tried to unzip a non-bz2 file
-            // status = 200;
-            // }
-            // t.sendResponseHeaders(status, 0);
-            // t.getResponseBody().close();
+            // long tEnd = System.currentTimeMillis();
+            // System.err.format("download/bunzip2/parse: %sms\n", tEnd - tStart);
+            // if (exitCode == 0) {
+            //     t.sendResponseHeaders(200, parseOut.length);
+            //     t.getResponseBody().write(parseOut);
+            //     t.getResponseBody().close();
             // } else {
-            // t.sendResponseHeaders(200, output.size());
-            // output.writeTo(t.getResponseBody());
-            // t.getResponseBody().close();
+            //     // We can send 200 status here and no response if expected error
+            //     // Maybe we can pass the specific error info in the response headers
+            //     int status = 500;
+            //     if (error.toString().contains("curl: (28) Operation timed out")) {
+            //         // Parse took too long, maybe China replay?
+            //         status = 200;
+            //     }
+            //     if (error.toString().contains("curl: (22) The requested URL returned error: 502")) {
+            //         // Google-Edge-Cache: origin retries exhausted Error: 2010
+            //         // Server error, don't retry
+            //         status = 200;
+            //     }
+            //     if (error.toString().contains("bunzip2: Data integrity error when decompressing")) {
+            //         // Corrupted replay, don't retry
+            //         status = 200;
+            //     }
+            //     if (error.toString().contains("bunzip2: Compressed file ends unexpectedly")) {
+            //         // Corrupted replay, don't retry
+            //         status = 200;
+            //     }
+            //     if (error.toString().contains("bunzip2: (stdin) is not a bzip2 file.")) {
+            //         // Tried to unzip a non-bz2 file
+            //         status = 200;
+            //     }
+            //     if (status == 200) {
+            //         t.sendResponseHeaders(status, 0);
+            //         t.getResponseBody().close();
+            //     } else {
+            //         throw new Exception("Unexpected error in parse pipeline");
+            //     }
             // }
         }
     }
