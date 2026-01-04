@@ -93,30 +93,42 @@ public class Main {
                 if (replayUrl.toString().endsWith(".bz2")) {
                     tStart = System.currentTimeMillis();
                     // Write byte[] to bunzip, get back decompressed byte[]
+                    // The C decompressor is a bit faster than Java, 4.3 vs 4.8s
+                    // BZip2CompressorInputStream bz = new BZip2CompressorInputStream(new ByteArrayInputStream(bzIn));
+                    // bzOut = bz.readAllBytes();
+                    // bz.close();
+
                     Process bz = new ProcessBuilder(new String[] { "bunzip2" }).start();
                     // Start separate thread so we can consume output while sending input
-                    Thread thread = new Thread(() -> {
+                    new Thread(() -> {
                         try {
                             bz.getOutputStream().write(bzIn);
                             bz.getOutputStream().close();
                         } catch (IOException ex) {
                             ex.printStackTrace();
                         }
-                    });
-                    thread.start();
+                    }).start();
 
                     bzOut = bz.getInputStream().readAllBytes();
+                    bz.getInputStream().close();
                     String bzError = new String(bz.getErrorStream().readAllBytes());
+                    bz.getErrorStream().close();
                     System.err.println(bzError);
+                    if (bzError.toString().contains("bunzip2: Data integrity error when decompressing") || bzError.contains("bunzip2: Compressed file ends unexpectedly")) {
+                        // Corrupted replay, don't retry
+                        t.sendResponseHeaders(200, 0);
+                        t.getResponseBody().close();
+                        return;
+                    }
                     tEnd = System.currentTimeMillis();
                     System.err.format("bunzip2: %dms\n", tEnd - tStart);
                 }
 
                 // Start parser with input stream created from byte[]
                 tStart = System.currentTimeMillis();
-                ByteArrayOutputStream baos2 = new ByteArrayOutputStream();
-                new Parse(new ByteArrayInputStream(bzOut), baos2, true);
-                byte[] parseOut = baos2.toByteArray();
+                ByteArrayOutputStream parseOutStream = new ByteArrayOutputStream();
+                new Parse(new ByteArrayInputStream(bzOut), parseOutStream, true);
+                byte[] parseOut = parseOutStream.toByteArray();
                 tEnd = System.currentTimeMillis();
                 System.err.format("parse: %dms\n", tEnd - tStart);
 
