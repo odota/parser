@@ -19,6 +19,12 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -77,49 +83,51 @@ public class Main {
                 URI replayUrl = URI.create(query.get("replay_url"));
                 // Get the replay as a byte[]
                 long tStart = System.currentTimeMillis();
-                HttpClient client = HttpClient.newHttpClient();
-                HttpRequest request = HttpRequest.newBuilder()
-                        .timeout(Duration.ofSeconds(145))
-                        .uri(replayUrl)
-                        .build();
-                HttpResponse<byte[]> response = client.send(request,
-                        HttpResponse.BodyHandlers.ofByteArray());
+                ExecutorService executor = Executors.newSingleThreadExecutor();
+                Future<byte[]> future = executor.submit(() -> {
+                    HttpClient client = HttpClient.newHttpClient();
+                    HttpRequest request = HttpRequest.newBuilder()
+                            .uri(replayUrl)
+                            .build();
+                    HttpResponse<byte[]> response = client.send(request,
+                            HttpResponse.BodyHandlers.ofByteArray());
+                    return response.body();
+                });
+                byte[] bzIn = future.get(800, TimeUnit.SECONDS);
                 long tEnd = System.currentTimeMillis();
                 System.err.format("download: %dms\n", tEnd - tStart);
 
-                byte[] bzIn = response.body();
                 byte[] bzOut = bzIn;
-
                 if (replayUrl.toString().endsWith(".bz2")) {
                     tStart = System.currentTimeMillis();
                     // Write byte[] to bunzip, get back decompressed byte[]
                     // The C decompressor is a bit faster than Java, 4.3 vs 4.8s
-                    // BZip2CompressorInputStream bz = new BZip2CompressorInputStream(new ByteArrayInputStream(bzIn));
-                    // bzOut = bz.readAllBytes();
-                    // bz.close();
+                    BZip2CompressorInputStream bz = new BZip2CompressorInputStream(new ByteArrayInputStream(bzIn));
+                    bzOut = bz.readAllBytes();
+                    bz.close();
 
-                    Process bz = new ProcessBuilder(new String[] { "bunzip2" }).start();
-                    // Start separate thread so we can consume output while sending input
-                    new Thread(() -> {
-                        try {
-                            bz.getOutputStream().write(bzIn);
-                            bz.getOutputStream().close();
-                        } catch (IOException ex) {
-                            ex.printStackTrace();
-                        }
-                    }).start();
+                    // Process bz = new ProcessBuilder(new String[] { "bunzip2" }).start();
+                    // // Start separate thread so we can consume output while sending input
+                    // new Thread(() -> {
+                    //     try {
+                    //         bz.getOutputStream().write(bzIn);
+                    //         bz.getOutputStream().close();
+                    //     } catch (IOException ex) {
+                    //         ex.printStackTrace();
+                    //     }
+                    // }).start();
 
-                    bzOut = bz.getInputStream().readAllBytes();
-                    bz.getInputStream().close();
-                    String bzError = new String(bz.getErrorStream().readAllBytes());
-                    bz.getErrorStream().close();
-                    System.err.println(bzError);
-                    if (bzError.toString().contains("bunzip2: Data integrity error when decompressing") || bzError.contains("bunzip2: Compressed file ends unexpectedly")) {
-                        // Corrupted replay, don't retry
-                        t.sendResponseHeaders(204, 0);
-                        t.getResponseBody().close();
-                        return;
-                    }
+                    // bzOut = bz.getInputStream().readAllBytes();
+                    // bz.getInputStream().close();
+                    // String bzError = new String(bz.getErrorStream().readAllBytes());
+                    // bz.getErrorStream().close();
+                    // System.err.println(bzError);
+                    // if (bzError.toString().contains("bunzip2: Data integrity error when decompressing") || bzError.contains("bunzip2: Compressed file ends unexpectedly")) {
+                    //     // Corrupted replay, don't retry
+                    //     t.sendResponseHeaders(204, 0);
+                    //     t.getResponseBody().close();
+                    //     return;
+                    // }
                     tEnd = System.currentTimeMillis();
                     System.err.format("bunzip2: %dms\n", tEnd - tStart);
                 }
