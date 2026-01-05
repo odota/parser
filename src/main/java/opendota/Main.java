@@ -116,7 +116,7 @@ public class Main {
                     System.err.println(bzError);
                     if (bzError.toString().contains("bunzip2: Data integrity error when decompressing") || bzError.contains("bunzip2: Compressed file ends unexpectedly")) {
                         // Corrupted replay, don't retry
-                        t.sendResponseHeaders(200, 0);
+                        t.sendResponseHeaders(204, 0);
                         t.getResponseBody().close();
                         return;
                     }
@@ -160,31 +160,31 @@ public class Main {
             //     t.getResponseBody().write(parseOut);
             //     t.getResponseBody().close();
             // } else {
-            //     // We can send 200 status here and no response if expected error
+            //     // We can send 204 status here and no response if expected error
             //     // Maybe we can pass the specific error info in the response headers
             //     int status = 500;
             //     if (error.toString().contains("curl: (28) Operation timed out")) {
             //         // Parse took too long, maybe China replay?
-            //         status = 200;
+            //         status = 204;
             //     }
             //     if (error.toString().contains("curl: (22) The requested URL returned error: 502")) {
             //         // Google-Edge-Cache: origin retries exhausted Error: 2010
             //         // Server error, don't retry
-            //         status = 200;
+            //         status = 204;
             //     }
             //     if (error.toString().contains("bunzip2: Data integrity error when decompressing")) {
             //         // Corrupted replay, don't retry
-            //         status = 200;
+            //         status = 204;
             //     }
             //     if (error.toString().contains("bunzip2: Compressed file ends unexpectedly")) {
             //         // Corrupted replay, don't retry
-            //         status = 200;
+            //         status = 204;
             //     }
             //     if (error.toString().contains("bunzip2: (stdin) is not a bzip2 file.")) {
             //         // Tried to unzip a non-bz2 file
-            //         status = 200;
+            //         status = 204;
             //     }
-            //     if (status == 200) {
+            //     if (status == 204) {
             //         t.sendResponseHeaders(status, 0);
             //         t.getResponseBody().close();
             //     } else {
