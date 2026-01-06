@@ -102,32 +102,32 @@ public class Main {
                     tStart = System.currentTimeMillis();
                     // Write byte[] to bunzip, get back decompressed byte[]
                     // The C decompressor is a bit faster than Java, 4.3 vs 4.8s
-                    BZip2CompressorInputStream bz = new BZip2CompressorInputStream(new ByteArrayInputStream(bzIn));
-                    bzOut = bz.readAllBytes();
-                    bz.close();
+                    // BZip2CompressorInputStream bz = new BZip2CompressorInputStream(new ByteArrayInputStream(bzIn));
+                    // bzOut = bz.readAllBytes();
+                    // bz.close();
 
-                    // Process bz = new ProcessBuilder(new String[] { "bunzip2" }).start();
-                    // // Start separate thread so we can consume output while sending input
-                    // new Thread(() -> {
-                    //     try {
-                    //         bz.getOutputStream().write(bzIn);
-                    //         bz.getOutputStream().close();
-                    //     } catch (IOException ex) {
-                    //         ex.printStackTrace();
-                    //     }
-                    // }).start();
+                    Process bz = new ProcessBuilder(new String[] { "bunzip2" }).start();
+                    // Start separate thread so we can consume output while sending input
+                    new Thread(() -> {
+                        try {
+                            bz.getOutputStream().write(bzIn);
+                            bz.getOutputStream().close();
+                        } catch (IOException ex) {
+                            ex.printStackTrace();
+                        }
+                    }).start();
 
-                    // bzOut = bz.getInputStream().readAllBytes();
-                    // bz.getInputStream().close();
-                    // String bzError = new String(bz.getErrorStream().readAllBytes());
-                    // bz.getErrorStream().close();
-                    // System.err.println(bzError);
-                    // if (bzError.toString().contains("bunzip2: Data integrity error when decompressing") || bzError.contains("bunzip2: Compressed file ends unexpectedly")) {
-                    //     // Corrupted replay, don't retry
-                    //     t.sendResponseHeaders(204, 0);
-                    //     t.getResponseBody().close();
-                    //     return;
-                    // }
+                    bzOut = bz.getInputStream().readAllBytes();
+                    bz.getInputStream().close();
+                    String bzError = new String(bz.getErrorStream().readAllBytes());
+                    bz.getErrorStream().close();
+                    System.err.println(bzError);
+                    if (bzError.toString().contains("bunzip2: Data integrity error when decompressing") || bzError.contains("bunzip2: Compressed file ends unexpectedly")) {
+                        // Corrupted replay, don't retry
+                        t.sendResponseHeaders(204, 0);
+                        t.getResponseBody().close();
+                        return;
+                    }
                     tEnd = System.currentTimeMillis();
                     System.err.format("bunzip2: %dms\n", tEnd - tStart);
                 }
