@@ -93,7 +93,7 @@ public class Main {
                             HttpResponse.BodyHandlers.ofByteArray());
                     return response.body();
                 });
-                byte[] bzIn = future.get(800, TimeUnit.SECONDS);
+                byte[] bzIn = future.get(600, TimeUnit.SECONDS);
                 long tEnd = System.currentTimeMillis();
                 System.err.format("download: %dms\n", tEnd - tStart);
 
