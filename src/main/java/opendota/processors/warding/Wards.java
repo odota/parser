@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 
-import skadistats.clarity.event.Event;
 import skadistats.clarity.event.EventListener;
 import skadistats.clarity.event.Initializer;
 import skadistats.clarity.event.Provides;
@@ -73,17 +72,17 @@ public class Wards {
 
     @Initializer(OnWardKilled.class)
     public void initOnWardKilled(final Context ctx, final EventListener<OnWardKilled> listener) {
-        evKilled = (OnWardKilled.Event) ctx.createEvent(OnWardKilled.class);
+        evKilled = ctx.createEvent(OnWardKilled.class);
     }
 
     @Initializer(OnWardExpired.class)
     public void initOnWardExpired(final Context ctx, final EventListener<OnWardExpired> listener) {
-        evExpired = (OnWardExpired.Event) ctx.createEvent(OnWardExpired.class);
+        evExpired = ctx.createEvent(OnWardExpired.class);
     }
 
     @Initializer(OnWardPlaced.class)
     public void initOnWardPlaced(final Context ctx, final EventListener<OnWardPlaced> listener) {
-        evPlaced = (OnWardPlaced.Event) ctx.createEvent(OnWardPlaced.class);
+        evPlaced = ctx.createEvent(OnWardPlaced.class);
     }
 
     public Wards() {
@@ -154,7 +153,7 @@ public class Wards {
     private void ensureFieldPathForEntityInitialized(Entity e) {
         Integer cid = e.getDtClass().getClassId();
         if (!lifeStatePaths.containsKey(cid)) {
-            lifeStatePaths.put(cid, e.getDtClass().getFieldPathForName("m_lifeState"));
+            lifeStatePaths.put(cid, e.getFieldPathForName("m_lifeState"));
         }
     }
     

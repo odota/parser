@@ -961,7 +961,7 @@ public class Parse {
             }
             Object cached = perClass.get(property);
             if (cached == null) {
-                FieldPath resolved = dt.getFieldPathForName(property);
+                FieldPath resolved = e.getFieldPathForName(property);
                 cached = resolved == null ? fpAbsent : resolved;
                 perClass.put(property, cached);
             }
