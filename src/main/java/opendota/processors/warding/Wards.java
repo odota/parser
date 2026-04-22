@@ -22,7 +22,7 @@ import skadistats.clarity.processor.entities.UsesEntities;
 import skadistats.clarity.processor.gameevents.OnCombatLogEntry;
 import skadistats.clarity.processor.reader.OnTickEnd;
 import skadistats.clarity.processor.runner.Context;
-import skadistats.clarity.wire.dota.common.proto.DOTAUserMessages;
+import skadistats.clarity.wire.dota.common.proto.DOTACombatLog;
 
 /**
  * @author micaelbergeron
@@ -56,9 +56,9 @@ public class Wards {
     private final Map<String, Queue<String>> wardKillersByWardClass = new HashMap<>();
     private Queue<ProcessEntityCommand> toProcess = new ArrayDeque<>();
 
-    private Event<OnWardKilled> evKilled;
-    private Event<OnWardExpired> evExpired;
-    private Event<OnWardPlaced> evPlaced;
+    private OnWardKilled.Event evKilled;
+    private OnWardExpired.Event evExpired;
+    private OnWardPlaced.Event evPlaced;
     
     private class ProcessEntityCommand {
 
@@ -73,17 +73,17 @@ public class Wards {
 
     @Initializer(OnWardKilled.class)
     public void initOnWardKilled(final Context ctx, final EventListener<OnWardKilled> listener) {
-        evKilled = ctx.createEvent(OnWardKilled.class, Entity.class, String.class);
+        evKilled = (OnWardKilled.Event) ctx.createEvent(OnWardKilled.class);
     }
-    
+
     @Initializer(OnWardExpired.class)
     public void initOnWardExpired(final Context ctx, final EventListener<OnWardExpired> listener) {
-        evExpired = ctx.createEvent(OnWardExpired.class, Entity.class);
+        evExpired = (OnWardExpired.Event) ctx.createEvent(OnWardExpired.class);
     }
-        
+
     @Initializer(OnWardPlaced.class)
     public void initOnWardPlaced(final Context ctx, final EventListener<OnWardPlaced> listener) {
-        evPlaced = ctx.createEvent(OnWardPlaced.class, Entity.class);
+        evPlaced = (OnWardPlaced.Event) ctx.createEvent(OnWardPlaced.class);
     }
 
     public Wards() {
@@ -163,7 +163,7 @@ public class Wards {
     }
     
     private boolean isWardDeath(CombatLogEntry e) {
-        return e.getType().equals(DOTAUserMessages.DOTA_COMBATLOG_TYPES.DOTA_COMBATLOG_DEATH)
+        return e.getType().equals(DOTACombatLog.DOTA_COMBATLOG_TYPES.DOTA_COMBATLOG_DEATH)
                 && WARDS_TARGET_NAMES.contains(e.getTargetName());
     }
     

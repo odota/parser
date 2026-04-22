@@ -1,5 +1,7 @@
 package opendota.processors.warding;
 
+import skadistats.clarity.event.EventBase;
+import skadistats.clarity.event.GenerateEvent;
 import skadistats.clarity.event.UsagePointMarker;
 import skadistats.clarity.event.UsagePointType;
 import skadistats.clarity.model.Entity;
@@ -11,7 +13,14 @@ import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target(value = ElementType.METHOD)
-@UsagePointMarker(value = UsagePointType.EVENT_LISTENER, parameterClasses = { Entity.class, String.class })
-public @interface OnWardKilled { 
-}
+@UsagePointMarker(value = UsagePointType.EVENT_LISTENER)
+@GenerateEvent
+public @interface OnWardKilled {
+    interface Listener {
+        void invoke(Entity e, String killerHeroName);
+    }
 
+    interface Event extends EventBase {
+        void raise(Entity e, String killerHeroName);
+    }
+}
