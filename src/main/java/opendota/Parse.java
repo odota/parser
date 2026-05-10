@@ -456,10 +456,11 @@ public class Parse {
         // ctx.getEngineType()
 
         // s1 DT_DOTAGameRulesProxy
-        Entity grp = ctx.getProcessor(Entities.class).getByDtName("CDOTAGamerulesProxy");
-        Entity pr = ctx.getProcessor(Entities.class).getByDtName("CDOTA_PlayerResource");
-        Entity dData = ctx.getProcessor(Entities.class).getByDtName("CDOTA_DataDire");
-        Entity rData = ctx.getProcessor(Entities.class).getByDtName("CDOTA_DataRadiant");
+        Entities entities = ctx.getProcessor(Entities.class);
+        Entity grp = singleton(entities, "CDOTAGamerulesProxy");
+        Entity pr = singleton(entities, "CDOTA_PlayerResource");
+        Entity dData = singleton(entities, "CDOTA_DataDire");
+        Entity rData = singleton(entities, "CDOTA_DataRadiant");
 
         // Create draftStage variable
         Integer draftStage = getEntityProperty(grp, "m_pGameRules.m_nGameState", null);
@@ -1020,5 +1021,9 @@ public class Parse {
         entry.slot = getPlayerSlotFromEntity(ctx, ownerEntity);
 
         return entry;
+    }
+
+    private static Entity singleton(Entities entities, String dtName) {
+        return entities.stream().filter(Entities.byDtName(dtName)).findFirst().orElse(null);
     }
 }
