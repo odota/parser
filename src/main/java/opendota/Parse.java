@@ -3,6 +3,7 @@ package opendota;
 import com.google.gson.Gson;
 import com.google.protobuf.GeneratedMessage;
 import skadistats.clarity.io.Util;
+import skadistats.clarity.model.DTClass;
 import skadistats.clarity.model.Entity;
 import skadistats.clarity.model.FieldPath;
 import skadistats.clarity.model.StringTable;
@@ -25,7 +26,7 @@ import skadistats.clarity.wire.dota.common.proto.DOTAUserMessages.CDOTAUserMsg_C
 import skadistats.clarity.wire.dota.common.proto.DOTAUserMessages.CDOTAUserMsg_ChatWheel;
 import skadistats.clarity.wire.dota.common.proto.DOTAUserMessages.CDOTAUserMsg_LocationPing;
 import skadistats.clarity.wire.dota.common.proto.DOTAUserMessages.CDOTAUserMsg_SpectatorPlayerUnitOrders;
-import skadistats.clarity.wire.dota.common.proto.DOTAUserMessages.DOTA_COMBATLOG_TYPES;
+import skadistats.clarity.wire.dota.common.proto.DOTACombatLog.DOTA_COMBATLOG_TYPES;
 import skadistats.clarity.wire.dota.s2.proto.DOTAS2GcMessagesCommon.CMsgDOTAMatch;
 import skadistats.clarity.wire.shared.s1.proto.S1UserMessages.CUserMsg_SayText2;
 import skadistats.clarity.wire.shared.s2.proto.S2UserMessages.CUserMessageSayText2;
@@ -941,6 +942,9 @@ public class Parse {
         return idx;
     }
 
+    private final Object fpAbsent = new Object();
+    private final IdentityHashMap<DTClass, HashMap<String, Object>> fpCache = new IdentityHashMap<>();
+
     public <T> T getEntityProperty(Entity e, String property, Integer idx) {
         try {
             if (e == null) {
@@ -949,11 +953,22 @@ public class Parse {
             if (idx != null) {
                 property = property.replace("%i", Util.arrayIdxToString(idx));
             }
-            FieldPath fp = e.getDtClass().getFieldPathForName(property);
-            if (fp == null) {
+            DTClass dt = e.getDtClass();
+            HashMap<String, Object> perClass = fpCache.get(dt);
+            if (perClass == null) {
+                perClass = new HashMap<>();
+                fpCache.put(dt, perClass);
+            }
+            Object cached = perClass.get(property);
+            if (cached == null) {
+                FieldPath resolved = dt.getFieldPathForName(property);
+                cached = resolved == null ? fpAbsent : resolved;
+                perClass.put(property, cached);
+            }
+            if (cached == fpAbsent) {
                 return null;
             }
-            return e.getPropertyForFieldPath(fp);
+            return e.getPropertyForFieldPath((FieldPath) cached);
         } catch (Exception ex) {
             return null;
         }
