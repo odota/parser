@@ -32,6 +32,7 @@ import skadistats.clarity.wire.shared.s1.proto.S1UserMessages.CUserMsg_SayText2;
 import skadistats.clarity.wire.shared.s2.proto.S2UserMessages.CUserMessageSayText2;
 
 import java.util.*;
+import java.util.function.Predicate;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -44,6 +45,28 @@ import opendota.processors.warding.OnWardKilled;
 import opendota.processors.warding.OnWardPlaced;
 
 public class Parse {
+
+    private static final Predicate<DTClass> ENTITY_FILTER = dt -> {
+        String n = dt.getDtName();
+        return switch (n) {
+            case "CDOTAGamerulesProxy",
+                 "CDOTA_PlayerResource",
+                 "CDOTA_DataDire",
+                 "CDOTA_DataRadiant",
+                 "CDOTAWearableItem",
+                 "CDOTAPlayer",
+                 "CDOTAPlayerController",
+                 "CDOTABaseAbility",
+                 "CDOTA_NPC_Observer_Ward",
+                 "CDOTA_NPC_Observer_Ward_TrueSight",
+                 "DT_DOTAGameRulesProxy",
+                 "DT_DOTA_NPC_Observer_Ward",
+                 "DT_DOTA_NPC_Observer_Ward_TrueSight" -> true;
+            default -> n.startsWith("CDOTA_Unit_Hero_")
+                    || n.startsWith("CDOTA_Item_")
+                    || n.startsWith("CDOTA_Ability_");
+        };
+    };
 
     private Float getPreciseLocation (Integer cell, Float vec) {
       return (cell*128.0f+vec)/128;
@@ -118,7 +141,11 @@ public class Parse {
         doBlob = blob;
         isPlayerStartingItemsWritten = new ArrayList<>(Arrays.asList(new Boolean[numPlayers]));
         Collections.fill(isPlayerStartingItemsWritten, Boolean.FALSE);
-        new SimpleRunner(new InputStreamSource(is)).runWith(this);
+        SimpleRunner runner = new SimpleRunner(new InputStreamSource(is));
+        if (Boolean.getBoolean("opendota.entityFilter")) {
+            runner.withEntityFilter(ENTITY_FILTER);
+        }
+        runner.runWith(this);
         if (doBlob) {
             if (!epilogue) {
                 throw new RuntimeException("no epilogue");
