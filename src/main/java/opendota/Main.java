@@ -122,7 +122,7 @@ public class Main {
                     String bzError = new String(bz.getErrorStream().readAllBytes());
                     bz.getErrorStream().close();
                     System.err.println(bzError);
-                    if (bzError.toString().contains("bunzip2: Data integrity error when decompressing") || bzError.contains("bunzip2: Compressed file ends unexpectedly")) {
+                    if (bzError.toString().contains("bunzip2: Data integrity error when decompressing") || bzError.contains("bunzip2: Compressed file ends unexpectedly") || bzError.contains("bunzip2: (stdin) is not a bzip2 file")) {
                         // Corrupted replay, don't retry
                         t.sendResponseHeaders(204, 0);
                         t.getResponseBody().close();
