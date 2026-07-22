@@ -1,7 +1,7 @@
 package opendota;
 
 import com.google.gson.Gson;
-import com.google.protobuf.GeneratedMessage;
+import skadistats.clarity.protobuf.GeneratedMessage;
 import skadistats.clarity.io.Util;
 import skadistats.clarity.model.DTClass;
 import skadistats.clarity.model.Entity;
