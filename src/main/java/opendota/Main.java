@@ -124,14 +124,19 @@ public class Main {
                     String bzError = new String(bz.getErrorStream().readAllBytes());
                     bz.getErrorStream().close();
                     System.err.println(bzError);
-                    if (bzError.toString().contains("bunzip2: Data integrity error when decompressing") || bzError.contains("bunzip2: Compressed file ends unexpectedly") || bzError.contains("bunzip2: (stdin) is not a bzip2 file")) {
+                    boolean corrupted = bzError.contains("bunzip2: Data integrity error when decompressing") || bzError.contains("bunzip2: Compressed file ends unexpectedly") || bzError.contains("bunzip2: (stdin) is not a bzip2 file");
+                    if (compressor.equals("unzstd")) {
+                        // The zstd magic bytes already matched, so a nonzero exit means a bad file
+                        corrupted = bz.waitFor() != 0;
+                    }
+                    if (corrupted) {
                         // Corrupted replay, don't retry
                         t.sendResponseHeaders(204, 0);
                         t.getResponseBody().close();
                         return;
                     }
                     tEnd = System.currentTimeMillis();
-                    System.err.format("bunzip2: %dms\n", tEnd - tStart);
+                    System.err.format("%s: %dms\n", compressor, tEnd - tStart);
                 }
 
                 // Start parser with input stream created from byte[]
