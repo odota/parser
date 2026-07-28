@@ -106,7 +106,9 @@ public class Main {
                     // bzOut = bz.readAllBytes();
                     // bz.close();
 
-                    Process bz = new ProcessBuilder(new String[] { "bunzip2" }).start();
+                    String compressor = isZstd(bzIn) ? "unzstd" : "bunzip2";
+
+                    Process bz = new ProcessBuilder(new String[] { compressor }).start();
                     // Start separate thread so we can consume output while sending input
                     new Thread(() -> {
                         try {
@@ -199,6 +201,22 @@ public class Main {
             //         throw new Exception("Unexpected error in parse pipeline");
             //     }
             // }
+        }
+        // Zstd magic number bytes, in file order (little-endian representation of 0xFD2FB528)
+        private static final byte[] ZSTD_MAGIC = {
+            (byte) 0x28, (byte) 0xB5, (byte) 0x2F, (byte) 0xFD
+        };
+
+        public static boolean isZstd(byte[] data) {
+            if (data == null || data.length < ZSTD_MAGIC.length) {
+                return false;
+            }
+            for (int i = 0; i < ZSTD_MAGIC.length; i++) {
+                if (data[i] != ZSTD_MAGIC[i]) {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 
