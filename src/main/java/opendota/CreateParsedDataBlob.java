@@ -51,6 +51,9 @@ class PlayerData {
     public List<Integer> lh_t = new ArrayList<>();
     public List<Integer> dn_t = new ArrayList<>();
     public List<Integer> xp_t = new ArrayList<>();
+    public List<Integer> camps_stacked_t = new ArrayList<>();
+    public List<Integer> hero_damage_t = new ArrayList<>();
+    public List<Integer> hero_healing_t = new ArrayList<>();
     public List<Entry> obs_log = new ArrayList<>();
     public List<Entry> sen_log = new ArrayList<>();
     public List<Entry> obs_left_log = new ArrayList<>();
@@ -141,6 +144,50 @@ class TeamfightPlayer {
 public class CreateParsedDataBlob {
 
     private Gson g = new Gson();
+
+    // Damage/healing dealt to real (non-illusion) heroes, bucketed by slot and
+    // minute of the event time, then emitted as cumulative hero_damage_t and
+    // hero_healing_t series on minute boundaries. Bucketed by event time in a
+    // pre-scan (rather than accumulated in stream order) because combat log
+    // entries can appear in the stream after the interval entry of the same
+    // game time, which would drop the final minute of a match.
+    private Map<Integer, Map<Integer, Integer>> heroDamageMinuteBySlot = new HashMap<>();
+    private Map<Integer, Map<Integer, Integer>> heroHealingMinuteBySlot = new HashMap<>();
+    private Map<Integer, Integer> heroDamageCumBySlot = new HashMap<>();
+    private Map<Integer, Integer> heroHealingCumBySlot = new HashMap<>();
+
+    // Events in (60*(k-1), 60*k] belong to bucket k so they are included in the
+    // sample taken at the minute boundary 60*k
+    private int minuteBucket(Integer time) {
+        return Math.max(0, (int) Math.ceil(time / 60.0));
+    }
+
+    private void precomputeMinuteSeries(List<Entry> entries, Metadata meta) {
+        for (Entry e : entries) {
+            if (e.time == null || e.value == null) {
+                continue;
+            }
+            // matches the Valve scoreboard definitions: damage/healing dealt to
+            // real (non-illusion) heroes other than yourself; illusion attacker
+            // damage counts toward the owning hero
+            if ("DOTA_COMBATLOG_DAMAGE".equals(e.type) || "DOTA_COMBATLOG_HEAL".equals(e.type)) {
+                if (e.targethero == null || !e.targethero ||
+                        (e.targetillusion != null && e.targetillusion) ||
+                        e.targetname == null || e.targetname.equals(e.sourcename)) {
+                    continue;
+                }
+                Integer sourceSlot = meta.hero_to_slot.get(e.sourcename);
+                if (sourceSlot == null) {
+                    continue;
+                }
+                Map<Integer, Map<Integer, Integer>> target = "DOTA_COMBATLOG_DAMAGE".equals(e.type)
+                        ? heroDamageMinuteBySlot
+                        : heroHealingMinuteBySlot;
+                target.computeIfAbsent(sourceSlot, k -> new HashMap<>())
+                        .merge(minuteBucket(e.time), e.value, Integer::sum);
+            }
+        }
+    }
 
     public ParsedData createParsedDataBlob(List<Entry> entries) {
         long tStart = System.currentTimeMillis();
@@ -574,6 +621,7 @@ public class CreateParsedDataBlob {
     private List<Entry> processExpand(List<Entry> entries, Metadata meta) {
         List<Entry> output = new ArrayList<>();
         precomputeReincarnations(entries, meta);
+        precomputeMinuteSeries(entries, meta);
 
         for (Entry e : entries) {
             String type = e.type;
@@ -1215,6 +1263,21 @@ public class CreateParsedDataBlob {
                 addIntervalData(e, output, meta, "xp_t", e.xp);
                 addIntervalData(e, output, meta, "lh_t", e.lh);
                 addIntervalData(e, output, meta, "dn_t", e.denies);
+                if (e.camps_stacked != null) {
+                    // not present in old replays; leave the array empty rather than filling with nulls
+                    addIntervalData(e, output, meta, "camps_stacked_t", e.camps_stacked);
+                }
+                int minuteIdx = e.time / 60;
+                int dmgCum = heroDamageCumBySlot.getOrDefault(e.slot, 0)
+                        + heroDamageMinuteBySlot.getOrDefault(e.slot, Collections.emptyMap())
+                                .getOrDefault(minuteIdx, 0);
+                heroDamageCumBySlot.put(e.slot, dmgCum);
+                addIntervalData(e, output, meta, "hero_damage_t", dmgCum);
+                int healCum = heroHealingCumBySlot.getOrDefault(e.slot, 0)
+                        + heroHealingMinuteBySlot.getOrDefault(e.slot, Collections.emptyMap())
+                                .getOrDefault(minuteIdx, 0);
+                heroHealingCumBySlot.put(e.slot, healCum);
+                addIntervalData(e, output, meta, "hero_healing_t", healCum);
             }
         }
 
@@ -1476,7 +1539,8 @@ public class CreateParsedDataBlob {
 
     // Helper methods
     private boolean isArrayField(String type) {
-        return Arrays.asList("times", "gold_t", "lh_t", "dn_t", "xp_t", "obs_log",
+        return Arrays.asList("times", "gold_t", "lh_t", "dn_t", "xp_t",
+                "camps_stacked_t", "hero_damage_t", "hero_healing_t", "obs_log",
                 "sen_log", "obs_left_log", "sen_left_log", "purchase_log", "kills_log",
                 "buyback_log", "runes_log", "connection_log", "neutral_tokens_log",
                 "neutral_item_history").contains(type);
@@ -1515,6 +1579,12 @@ public class CreateParsedDataBlob {
                 return player.dn_t;
             case "xp_t":
                 return player.xp_t;
+            case "camps_stacked_t":
+                return player.camps_stacked_t;
+            case "hero_damage_t":
+                return player.hero_damage_t;
+            case "hero_healing_t":
+                return player.hero_healing_t;
             default:
                 throw new RuntimeException("missing list type " + type);
         }
