@@ -1,9 +1,9 @@
 FROM maven:3.9.12-eclipse-temurin-21-noble
 
-RUN apt-get update
 
-# Install bzip2/zstd for decompression
-RUN apt-get install -y bzip2 zstd
+# Install bzip2/zstd to enable native decompression
+# RUN apt-get update
+# RUN apt-get install -y bzip2 zstd
 
 # Install nodejs for log processing
 # ARG NODE_VERSION=20.10.0

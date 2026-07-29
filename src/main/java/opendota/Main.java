@@ -25,6 +25,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
+import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -93,56 +94,68 @@ public class Main {
                             HttpResponse.BodyHandlers.ofByteArray());
                     return response.body();
                 });
-                byte[] bzIn = future.get(600, TimeUnit.SECONDS);
+                byte[] compressIn = future.get(600, TimeUnit.SECONDS);
                 long tEnd = System.currentTimeMillis();
                 System.err.format("download: %dms\n", tEnd - tStart);
 
-                byte[] bzOut = bzIn;
-                if (replayUrl.toString().endsWith(".bz2")) {
-                    tStart = System.currentTimeMillis();
-                    // Write byte[] to bunzip, get back decompressed byte[]
-                    // The C decompressor is a bit faster than Java, 4.3 vs 4.8s
-                    // BZip2CompressorInputStream bz = new BZip2CompressorInputStream(new ByteArrayInputStream(bzIn));
-                    // bzOut = bz.readAllBytes();
-                    // bz.close();
-
-                    String compressor = isZstd(bzIn) ? "unzstd" : "bunzip2";
-
-                    Process bz = new ProcessBuilder(new String[] { compressor }).start();
-                    // Start separate thread so we can consume output while sending input
-                    new Thread(() -> {
-                        try {
-                            bz.getOutputStream().write(bzIn);
-                            bz.getOutputStream().close();
-                        } catch (IOException ex) {
-                            ex.printStackTrace();
-                        }
-                    }).start();
-
-                    bzOut = bz.getInputStream().readAllBytes();
-                    bz.getInputStream().close();
-                    String bzError = new String(bz.getErrorStream().readAllBytes());
-                    bz.getErrorStream().close();
-                    System.err.println(bzError);
-                    boolean corrupted = bzError.contains("bunzip2: Data integrity error when decompressing") || bzError.contains("bunzip2: Compressed file ends unexpectedly") || bzError.contains("bunzip2: (stdin) is not a bzip2 file");
-                    if (compressor.equals("unzstd")) {
-                        // The zstd magic bytes already matched, so a nonzero exit means a bad file
-                        corrupted = bz.waitFor() != 0;
+                byte[] compressOut = null;
+                tStart = System.currentTimeMillis();
+                try {
+                    if (isZstd(compressIn)) {
+                        ZstdCompressorInputStream zis = new ZstdCompressorInputStream(new ByteArrayInputStream(compressIn));
+                        compressOut = zis.readAllBytes();
+                        zis.close();
+                    } else if (isBzip2(compressIn)) {
+                        BZip2CompressorInputStream bis = new BZip2CompressorInputStream(new ByteArrayInputStream(compressIn));
+                        compressOut = bis.readAllBytes();
+                        bis.close();
+                    } else {
+                        compressOut = compressIn;
                     }
-                    if (corrupted) {
-                        // Corrupted replay, don't retry
-                        t.sendResponseHeaders(204, 0);
-                        t.getResponseBody().close();
-                        return;
-                    }
-                    tEnd = System.currentTimeMillis();
-                    System.err.format("%s: %dms\n", compressor, tEnd - tStart);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    // Corrupted replay, don't retry
+                    t.sendResponseHeaders(204, 0);
+                    t.getResponseBody().close();
+                    return;
                 }
+                // Write byte[] to bunzip, get back decompressed byte[]
+                // The C decompressor is a bit faster than Java, 4.3 vs 4.8s
+                // String compressor = isZstd(bzIn) ? "unzstd" : "bunzip2";
+                // Process bz = new ProcessBuilder(new String[] { compressor }).start();
+                // // Start separate thread so we can consume output while sending input
+                // new Thread(() -> {
+                //     try {
+                //         bz.getOutputStream().write(bzIn);
+                //         bz.getOutputStream().close();
+                //     } catch (IOException ex) {
+                //         ex.printStackTrace();
+                //     }
+                // }).start();
+
+                // compressOut = bz.getInputStream().readAllBytes();
+                // bz.getInputStream().close();
+                // String bzError = new String(bz.getErrorStream().readAllBytes());
+                // bz.getErrorStream().close();
+                // System.err.println(bzError);
+                // boolean corrupted = bzError.contains("bunzip2: Data integrity error when decompressing") || bzError.contains("bunzip2: Compressed file ends unexpectedly") || bzError.contains("bunzip2: (stdin) is not a bzip2 file");
+                // if (compressor.equals("unzstd")) {
+                //     // The zstd magic bytes already matched, so a nonzero exit means a bad file
+                //     corrupted = bz.waitFor() != 0;
+                // }
+                // if (corrupted) {
+                //     // Corrupted replay, don't retry
+                //     t.sendResponseHeaders(204, 0);
+                //     t.getResponseBody().close();
+                //     return;
+                // }
+                tEnd = System.currentTimeMillis();
+                System.err.format("%s: %dms\n", "decompress", tEnd - tStart);
 
                 // Start parser with input stream created from byte[]
                 tStart = System.currentTimeMillis();
                 ByteArrayOutputStream parseOutStream = new ByteArrayOutputStream();
-                new Parse(new ByteArrayInputStream(bzOut), parseOutStream, true);
+                new Parse(new ByteArrayInputStream(compressOut), parseOutStream, true);
                 byte[] parseOut = parseOutStream.toByteArray();
                 tEnd = System.currentTimeMillis();
                 System.err.format("parse: %dms\n", tEnd - tStart);
@@ -222,6 +235,18 @@ public class Main {
                 }
             }
             return true;
+        }
+
+        public static boolean isBzip2(byte[] data) {
+            if (data == null || data.length < 4) {
+                return false;
+            }
+            // bzip2 files start with "BZh" followed by a digit '1'-'9'
+            // indicating the block size (100k-900k)
+            return data[0] == 'B'
+                && data[1] == 'Z'
+                && data[2] == 'h'
+                && data[3] >= '1' && data[3] <= '9';
         }
     }
 
