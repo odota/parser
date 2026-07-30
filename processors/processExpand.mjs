@@ -45,50 +45,6 @@ function processExpand(entries, meta) {
   let aegisHolder = null;
   // Used to ignore meepo clones killing themselves
   let aegisDeathTime = null;
-  // Damage/healing dealt to real (non-illusion) heroes, bucketed by slot and
-  // minute of the event time, then emitted as cumulative hero_damage_t and
-  // hero_healing_t series on minute boundaries. Bucketed by event time in a
-  // pre-scan (rather than accumulated in stream order) because combat log
-  // entries can appear in the stream after the interval entry of the same
-  // game time, which would drop the final minute of a match.
-  // Events in (60*(k-1), 60*k] belong to bucket k so they are included in the
-  // sample taken at the minute boundary 60*k
-  const minuteBucket = (time) => Math.max(0, Math.ceil(time / 60));
-  const heroDamageMinuteBySlot = {};
-  const heroHealingMinuteBySlot = {};
-  const heroDamageCumBySlot = {};
-  const heroHealingCumBySlot = {};
-  entries.forEach((e) => {
-    if (e.time == null || e.value == null) {
-      return;
-    }
-    // matches the Valve scoreboard definitions: damage/healing dealt to
-    // real (non-illusion) heroes other than yourself; illusion attacker
-    // damage counts toward the owning hero
-    if (e.type === 'DOTA_COMBATLOG_DAMAGE' || e.type === 'DOTA_COMBATLOG_HEAL') {
-      if (
-        !e.targethero ||
-        e.targetillusion ||
-        !e.targetname ||
-        e.targetname === e.sourcename
-      ) {
-        return;
-      }
-      const sourceSlot = meta.hero_to_slot[e.sourcename];
-      if (sourceSlot === undefined) {
-        return;
-      }
-      const target =
-        e.type === 'DOTA_COMBATLOG_DAMAGE'
-          ? heroDamageMinuteBySlot
-          : heroHealingMinuteBySlot;
-      if (!target[sourceSlot]) {
-        target[sourceSlot] = {};
-      }
-      const bucket = minuteBucket(e.time);
-      target[sourceSlot][bucket] = (target[sourceSlot][bucket] || 0) + e.value;
-    }
-  });
   const types = {
     DOTA_COMBATLOG_DAMAGE(e) {
       // damage
@@ -642,37 +598,6 @@ function processExpand(entries, meta) {
             interval: true,
             type: 'dn_t',
             value: e.denies,
-          });
-          if (e.camps_stacked != null) {
-            // not present in old replays; leave the array empty rather than filling with nulls
-            expand({
-              time: e.time,
-              slot: e.slot,
-              interval: true,
-              type: 'camps_stacked_t',
-              value: e.camps_stacked,
-            });
-          }
-          const minuteIdx = e.time / 60;
-          heroDamageCumBySlot[e.slot] =
-            (heroDamageCumBySlot[e.slot] || 0) +
-            (heroDamageMinuteBySlot[e.slot]?.[minuteIdx] || 0);
-          expand({
-            time: e.time,
-            slot: e.slot,
-            interval: true,
-            type: 'hero_damage_t',
-            value: heroDamageCumBySlot[e.slot],
-          });
-          heroHealingCumBySlot[e.slot] =
-            (heroHealingCumBySlot[e.slot] || 0) +
-            (heroHealingMinuteBySlot[e.slot]?.[minuteIdx] || 0);
-          expand({
-            time: e.time,
-            slot: e.slot,
-            interval: true,
-            type: 'hero_healing_t',
-            value: heroHealingCumBySlot[e.slot],
           });
         }
       }
