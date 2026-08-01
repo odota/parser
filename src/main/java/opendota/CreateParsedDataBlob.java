@@ -457,10 +457,123 @@ public class CreateParsedDataBlob {
         return (isIllusion != null && isIllusion ? "illusion_" : "") + input;
     }
 
+    // Deaths that trigger an aegis or Wraith King reincarnation are not real
+    // deaths: the scoreboard does not count them. The aegis revival leaves no
+    // combat log trace of its own, so the aegis case is detected from the
+    // pickup chat message instead: the first death of the holder within the
+    // expiry window is the reincarnation, and picking it up again opens a new
+    // window. WK's ult does apply a modifier while reincarnating, at the death
+    // itself. Both are collected in a pre-scan keyed by event time because the
+    // chat, modifier and death entries around a reincarnation are not strictly
+    // ordered in the stream.
+    private static final String WK_HERO = "npc_dota_hero_skeleton_king";
+    private static final String WK_REINCARNATION_MODIFIER = "modifier_skeleton_king_reincarnation";
+    private static final int AEGIS_EXPIRY_SECONDS = 300;
+    // Reincarnation revives in ~3s; the shortest real respawn is far longer,
+    // so a WK back on his feet this fast without a buyback reincarnated
+    private static final int WK_REVIVE_MAX_SECONDS = 4;
+
+    // aegis pickups: slot -> list of {pickupTime, used}
+    private Map<Integer, List<int[]>> aegisPickupsBySlot = new HashMap<>();
+    private Map<Integer, List<Integer>> reincarnationTimesBySlot = new HashMap<>();
+    private Map<Integer, List<int[]>> deadWindowsBySlot = new HashMap<>();
+    private Map<Integer, List<Integer>> buybackTimesBySlot = new HashMap<>();
+    private Integer wkSlot = null;
+
+    private void precomputeReincarnations(List<Entry> entries, Metadata meta) {
+        wkSlot = meta.hero_to_slot.get(WK_HERO);
+        Map<Integer, Integer> lastState = new HashMap<>();
+        Map<Integer, Integer> deadSince = new HashMap<>();
+        for (Entry e : entries) {
+            if (e.time == null) {
+                continue;
+            }
+            if (("CHAT_MESSAGE_AEGIS".equals(e.type) || "CHAT_MESSAGE_AEGIS_STOLEN".equals(e.type))
+                    && e.player1 != null) {
+                aegisPickupsBySlot.computeIfAbsent(e.player1, k -> new ArrayList<>())
+                        .add(new int[] { e.time, 0 });
+            } else if ("DOTA_COMBATLOG_MODIFIER_ADD".equals(e.type)
+                    && WK_REINCARNATION_MODIFIER.equals(e.inflictor) && e.targetname != null) {
+                Integer slot = meta.hero_to_slot.get(e.targetname);
+                if (slot != null) {
+                    reincarnationTimesBySlot.computeIfAbsent(slot, k -> new ArrayList<>()).add(e.time);
+                }
+            } else if ("DOTA_COMBATLOG_BUYBACK".equals(e.type) && e.value != null) {
+                buybackTimesBySlot.computeIfAbsent(e.value, k -> new ArrayList<>()).add(e.time);
+            } else if ("interval".equals(e.type) && e.slot != null && e.life_state != null) {
+                Integer prev = lastState.get(e.slot);
+                if ((prev == null || prev == 0) && e.life_state != 0) {
+                    deadSince.put(e.slot, e.time);
+                } else if (prev != null && prev != 0 && e.life_state == 0) {
+                    Integer start = deadSince.remove(e.slot);
+                    if (start != null) {
+                        deadWindowsBySlot.computeIfAbsent(e.slot, k -> new ArrayList<>())
+                                .add(new int[] { start, e.time });
+                    }
+                }
+                lastState.put(e.slot, e.life_state);
+            }
+        }
+    }
+
+    private boolean consumeReincarnationDeath(Integer slot, Integer time) {
+        if (slot == null || time == null) {
+            return false;
+        }
+        // WK's base reincarnation modifier, when logged
+        List<Integer> wk = reincarnationTimesBySlot.get(slot);
+        if (wk != null) {
+            for (Integer r : wk) {
+                if (Math.abs(r - time) <= 3) {
+                    return true;
+                }
+            }
+        }
+        // WK back on his feet within seconds and without a buyback: the
+        // scepter/facet variants of Reincarnation leave no modifier entry, but
+        // the revive shows in the life_state intervals
+        if (slot.equals(wkSlot)) {
+            List<int[]> windows = deadWindowsBySlot.get(slot);
+            if (windows != null) {
+                for (int[] w : windows) {
+                    if (w[0] >= time - 1 && w[0] <= time + 3
+                            && w[1] - w[0] <= WK_REVIVE_MAX_SECONDS
+                            && !hasBuybackBetween(slot, w[0], w[1])) {
+                        return true;
+                    }
+                }
+            }
+        }
+        // first death while holding a non-expired aegis is the aegis
+        // reincarnation; the pickup is consumed so later deaths count
+        List<int[]> pickups = aegisPickupsBySlot.get(slot);
+        if (pickups != null) {
+            for (int[] p : pickups) {
+                if (p[1] == 0 && time >= p[0] && time <= p[0] + AEGIS_EXPIRY_SECONDS) {
+                    p[1] = 1;
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean hasBuybackBetween(Integer slot, int from, int to) {
+        List<Integer> times = buybackTimesBySlot.get(slot);
+        if (times == null) {
+            return false;
+        }
+        for (Integer t : times) {
+            if (t >= from && t <= to) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private List<Entry> processExpand(List<Entry> entries, Metadata meta) {
         List<Entry> output = new ArrayList<>();
-        Integer aegisHolder = null;
-        Integer aegisDeathTime = null;
+        precomputeReincarnations(entries, meta);
 
         for (Entry e : entries) {
             String type = e.type;
@@ -472,15 +585,8 @@ public class CreateParsedDataBlob {
                 case "DOTA_COMBATLOG_HEAL":
                     handleHeal(e, output, meta);
                     break;
-                case "DOTA_COMBATLOG_MODIFIER_ADD":
-                    if ("modifier_aegis_regen".equals(e.inflictor)) {
-                        aegisHolder = null;
-                    }
-                    break;
                 case "DOTA_COMBATLOG_DEATH":
-                    Integer[] result = handleDeathCombat(e, output, meta, aegisHolder, aegisDeathTime);
-                    aegisHolder = result[0];
-                    aegisDeathTime = result[1];
+                    handleDeathCombat(e, output, meta);
                     break;
                 case "DOTA_COMBATLOG_ABILITY":
                     handleAbility(e, output, meta);
@@ -528,11 +634,9 @@ public class CreateParsedDataBlob {
                     handleFirstblood(e, output, meta);
                     break;
                 case "CHAT_MESSAGE_AEGIS":
-                    aegisHolder = e.player1;
                     handleAegis(e, output, meta);
                     break;
                 case "CHAT_MESSAGE_AEGIS_STOLEN":
-                    aegisHolder = e.player1;
                     handleAegisStolen(e, output, meta);
                     break;
                 case "CHAT_MESSAGE_DENIED_AEGIS":
@@ -669,8 +773,7 @@ public class CreateParsedDataBlob {
         expand(heal, output, meta);
     }
 
-    private Integer[] handleDeathCombat(Entry e, List<Entry> output, Metadata meta,
-            Integer aegisHolder, Integer aegisDeathTime) {
+    private void handleDeathCombat(Entry e, List<Entry> output, Metadata meta) {
         String unit = e.sourcename;
         String key = computeIllusionString(e.targetname, e.targetillusion);
 
@@ -685,22 +788,12 @@ public class CreateParsedDataBlob {
             expand(buildingKill, output, meta);
         }
 
-        Integer slotForKey = meta.hero_to_slot.get(key);
-        if (slotForKey != null && slotForKey.equals(aegisHolder)) {
-            if (aegisDeathTime == null) {
-                aegisDeathTime = e.time;
-                return new Integer[] { aegisHolder, aegisDeathTime };
-            }
-            if (!aegisDeathTime.equals(e.time)) {
-                aegisDeathTime = null;
-                aegisHolder = null;
-            } else {
-                return new Integer[] { aegisHolder, aegisDeathTime };
-            }
+        if (consumeReincarnationDeath(meta.hero_to_slot.get(key), e.time)) {
+            return;
         }
 
         if (e.attackername != null && e.attackername.equals(key)) {
-            return new Integer[] { aegisHolder, aegisDeathTime };
+            return;
         }
 
         if (e.targethero != null && e.targethero &&
@@ -733,8 +826,6 @@ public class CreateParsedDataBlob {
         killed.tracked_sourcename = e.tracked_sourcename;
         killed.greevils_greed_stack = e.greevils_greed_stack;
         expand(killed, output, meta);
-
-        return new Integer[] { aegisHolder, aegisDeathTime };
     }
 
     private void handleAbility(Entry e, List<Entry> output, Metadata meta) {
