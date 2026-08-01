@@ -374,6 +374,10 @@ public class CreateParsedDataBlob {
                 obj.put("tracked_sourcename", e.tracked_sourcename);
             }
 
+            if ("kills_log".equals(e.type) && e.smoke != null) {
+                obj.put("smoke", e.smoke);
+            }
+
             if ("purchase_log".equals(e.type)) {
                 player.purchase_log.add(obj);
             } else if ("kills_log".equals(e.type)) {
@@ -618,10 +622,64 @@ public class CreateParsedDataBlob {
         return false;
     }
 
+    private static final String SMOKE_MODIFIER = "modifier_smoke_of_deceit";
+    // A kill still counts as made from smoke this many seconds after the
+    // modifier broke: the smoke pops on proximity when the gank starts and the
+    // kills land over the following fight. Calibrated against Stratz's isSmoke
+    // label, whose flagged kills fall up to 29s after the break
+    private static final int SMOKE_LINGER_SECONDS = 30;
+    // Defensive close for windows with no remove event (smoke lasts up to 35s)
+    private static final int SMOKE_MAX_SECONDS = 35;
+
+    // Smoke of Deceit windows ([add, remove] of the modifier) by slot,
+    // collected in a pre-scan keyed by event time because the combat log
+    // entries around a kill are not strictly ordered in the stream
+    private Map<Integer, List<int[]>> smokeWindowsBySlot = new HashMap<>();
+
+    private void precomputeSmokeWindows(List<Entry> entries, Metadata meta) {
+        Map<Integer, Integer> openSince = new HashMap<>();
+        for (Entry e : entries) {
+            if (!SMOKE_MODIFIER.equals(e.inflictor) || e.targetname == null || e.time == null) {
+                continue;
+            }
+            Integer slot = meta.hero_to_slot.get(e.targetname);
+            if (slot == null) {
+                continue;
+            }
+            if ("DOTA_COMBATLOG_MODIFIER_ADD".equals(e.type)) {
+                openSince.putIfAbsent(slot, e.time);
+            } else if ("DOTA_COMBATLOG_MODIFIER_REMOVE".equals(e.type)) {
+                Integer start = openSince.remove(slot);
+                if (start != null) {
+                    smokeWindowsBySlot.computeIfAbsent(slot, k -> new ArrayList<>())
+                            .add(new int[] { start, e.time });
+                }
+            }
+        }
+        for (Map.Entry<Integer, Integer> open : openSince.entrySet()) {
+            smokeWindowsBySlot.computeIfAbsent(open.getKey(), k -> new ArrayList<>())
+                    .add(new int[] { open.getValue(), open.getValue() + SMOKE_MAX_SECONDS });
+        }
+    }
+
+    private boolean wasSmoked(Integer slot, Integer time) {
+        List<int[]> windows = slot == null ? null : smokeWindowsBySlot.get(slot);
+        if (windows == null || time == null) {
+            return false;
+        }
+        for (int[] w : windows) {
+            if (time >= w[0] && time <= w[1] + SMOKE_LINGER_SECONDS) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private List<Entry> processExpand(List<Entry> entries, Metadata meta) {
         List<Entry> output = new ArrayList<>();
         precomputeReincarnations(entries, meta);
         precomputeMinuteSeries(entries, meta);
+        precomputeSmokeWindows(entries, meta);
 
         for (Entry e : entries) {
             String type = e.type;
@@ -859,6 +917,9 @@ public class CreateParsedDataBlob {
             killLog.key = key;
             killLog.tracked_death = e.tracked_death;
             killLog.tracked_sourcename = e.tracked_sourcename;
+            if (wasSmoked(meta.hero_to_slot.get(unit), e.time)) {
+                killLog.smoke = true;
+            }
             killLog.type = "kills_log";
             expand(killLog, output, meta);
 
