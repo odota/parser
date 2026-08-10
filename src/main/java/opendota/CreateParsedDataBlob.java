@@ -792,7 +792,13 @@ public class CreateParsedDataBlob {
             return;
         }
 
-        if (e.attackername != null && e.attackername.equals(key)) {
+        // Suicides (e.g. Techies) are not kills, but only when the attacker is
+        // the victim itself: an illusion OF the victim landing the killing blow
+        // (Dark Portrait, Disruption, Wall of Replica) has the same unit name
+        // while the kill belongs to the illusion's owner, which sourcename
+        // already resolves to
+        if (e.attackername != null && e.attackername.equals(key)
+                && (e.attackerillusion == null || !e.attackerillusion)) {
             return;
         }
 
