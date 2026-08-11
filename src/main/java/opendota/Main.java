@@ -1,7 +1,6 @@
 package opendota;
 
 import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -14,7 +13,8 @@ import java.net.URLDecoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.Duration;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Timer;
@@ -79,38 +79,64 @@ public class Main {
     static class BlobHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange t) throws IOException {
+            Path downloadFile = null;
+            Path decompressedFile = null;
             try {
                 Map<String, String> query = splitQuery(t.getRequestURI());
                 URI replayUrl = URI.create(query.get("replay_url"));
-                // Get the replay as a byte[]
+
+                // Download the replay directly to a temp file on disk
+                downloadFile = Files.createTempFile("replay-download-", ".bin");
                 long tStart = System.currentTimeMillis();
                 ExecutorService executor = Executors.newSingleThreadExecutor();
-                Future<byte[]> future = executor.submit(() -> {
-                    HttpClient client = HttpClient.newHttpClient();
-                    HttpRequest request = HttpRequest.newBuilder()
-                            .uri(replayUrl)
-                            .build();
-                    HttpResponse<byte[]> response = client.send(request,
-                            HttpResponse.BodyHandlers.ofByteArray());
-                    return response.body();
-                });
-                byte[] compressIn = future.get(600, TimeUnit.SECONDS);
+                final Path downloadTarget = downloadFile;
+                try {
+                    Future<Path> future = executor.submit(() -> {
+                        HttpClient client = HttpClient.newHttpClient();
+                        HttpRequest request = HttpRequest.newBuilder()
+                                .uri(replayUrl)
+                                .build();
+                        HttpResponse<Path> response = client.send(request,
+                                HttpResponse.BodyHandlers.ofFile(downloadTarget,
+                                        java.nio.file.StandardOpenOption.CREATE,
+                                        java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
+                                        java.nio.file.StandardOpenOption.WRITE));
+                        return response.body();
+                    });
+                    future.get(600, TimeUnit.SECONDS);
+                } finally {
+                    executor.shutdownNow();
+                }
                 long tEnd = System.currentTimeMillis();
                 System.err.format("download: %dms\n", tEnd - tStart);
 
-                byte[] compressOut = null;
+                // Peek at the first few bytes on disk to determine compression type
+                byte[] header;
+                try (InputStream headerIn = Files.newInputStream(downloadFile)) {
+                    header = headerIn.readNBytes(4);
+                }
+
                 tStart = System.currentTimeMillis();
                 try {
-                    if (isZstd(compressIn)) {
-                        ZstdCompressorInputStream zis = new ZstdCompressorInputStream(new ByteArrayInputStream(compressIn));
-                        compressOut = zis.readAllBytes();
-                        zis.close();
-                    } else if (isBzip2(compressIn)) {
-                        BZip2CompressorInputStream bis = new BZip2CompressorInputStream(new ByteArrayInputStream(compressIn));
-                        compressOut = bis.readAllBytes();
-                        bis.close();
+                    if (isZstd(header)) {
+                        decompressedFile = Files.createTempFile("replay-decompressed-", ".bin");
+                        try (InputStream fis = Files.newInputStream(downloadFile);
+                             ZstdCompressorInputStream zis = new ZstdCompressorInputStream(fis);
+                             OutputStream fos = Files.newOutputStream(decompressedFile,
+                                     java.nio.file.StandardOpenOption.TRUNCATE_EXISTING)) {
+                            zis.transferTo(fos);
+                        }
+                    } else if (isBzip2(header)) {
+                        decompressedFile = Files.createTempFile("replay-decompressed-", ".bin");
+                        try (InputStream fis = Files.newInputStream(downloadFile);
+                             BZip2CompressorInputStream bis = new BZip2CompressorInputStream(fis);
+                             OutputStream fos = Files.newOutputStream(decompressedFile,
+                                     java.nio.file.StandardOpenOption.TRUNCATE_EXISTING)) {
+                            bis.transferTo(fos);
+                        }
                     } else {
-                        compressOut = compressIn;
+                        // Not compressed, parse directly from the downloaded file
+                        decompressedFile = downloadFile;
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -119,43 +145,15 @@ public class Main {
                     t.getResponseBody().close();
                     return;
                 }
-                // Write byte[] to bunzip, get back decompressed byte[]
-                // The C decompressor is a bit faster than Java, 4.3 vs 4.8s
-                // String compressor = isZstd(bzIn) ? "unzstd" : "bunzip2";
-                // Process bz = new ProcessBuilder(new String[] { compressor }).start();
-                // // Start separate thread so we can consume output while sending input
-                // new Thread(() -> {
-                //     try {
-                //         bz.getOutputStream().write(bzIn);
-                //         bz.getOutputStream().close();
-                //     } catch (IOException ex) {
-                //         ex.printStackTrace();
-                //     }
-                // }).start();
-
-                // compressOut = bz.getInputStream().readAllBytes();
-                // bz.getInputStream().close();
-                // String bzError = new String(bz.getErrorStream().readAllBytes());
-                // bz.getErrorStream().close();
-                // System.err.println(bzError);
-                // boolean corrupted = bzError.contains("bunzip2: Data integrity error when decompressing") || bzError.contains("bunzip2: Compressed file ends unexpectedly") || bzError.contains("bunzip2: (stdin) is not a bzip2 file");
-                // if (compressor.equals("unzstd")) {
-                //     // The zstd magic bytes already matched, so a nonzero exit means a bad file
-                //     corrupted = bz.waitFor() != 0;
-                // }
-                // if (corrupted) {
-                //     // Corrupted replay, don't retry
-                //     t.sendResponseHeaders(204, 0);
-                //     t.getResponseBody().close();
-                //     return;
-                // }
                 tEnd = System.currentTimeMillis();
                 System.err.format("%s: %dms\n", "decompress", tEnd - tStart);
 
-                // Start parser with input stream created from byte[]
+                // Start parser reading straight off disk
                 tStart = System.currentTimeMillis();
                 ByteArrayOutputStream parseOutStream = new ByteArrayOutputStream();
-                new Parse(new ByteArrayInputStream(compressOut), parseOutStream, true);
+                try (InputStream parseIn = Files.newInputStream(decompressedFile)) {
+                    new Parse(parseIn, parseOutStream, true);
+                }
                 byte[] parseOut = parseOutStream.toByteArray();
                 tEnd = System.currentTimeMillis();
                 System.err.format("parse: %dms\n", tEnd - tStart);
@@ -167,58 +165,19 @@ public class Main {
                 ex.printStackTrace();
                 t.sendResponseHeaders(500, 0);
                 t.getResponseBody().close();
+            } finally {
+                // Clean up temp files from disk
+                try {
+                    if (downloadFile != null) {
+                        Files.deleteIfExists(downloadFile);
+                    }
+                    if (decompressedFile != null && !decompressedFile.equals(downloadFile)) {
+                        Files.deleteIfExists(decompressedFile);
+                    }
+                } catch (IOException cleanupEx) {
+                    cleanupEx.printStackTrace();
+                }
             }
-            // long tStart = System.currentTimeMillis();
-            // String cmd = String.format("""
-            //         curl --max-time 145 --fail -L %s | %s | curl -X POST -T - "localhost:5600?blob"
-            //         """,
-            //         replayUrl.toString(),
-            //         replayUrl.toString().endsWith(".bz2") ? "bunzip2" : "cat");
-            // System.err.println(cmd);
-            // Process proc = new ProcessBuilder(new String[] { "bash", "-c", cmd })
-            //         .start();
-            // byte[] parseOut = proc.getInputStream().readAllBytes();
-            // String error = new String(proc.getErrorStream().readAllBytes());
-            // System.err.println(error);
-            // int exitCode = proc.waitFor();
-            // long tEnd = System.currentTimeMillis();
-            // System.err.format("download/bunzip2/parse: %sms\n", tEnd - tStart);
-            // if (exitCode == 0) {
-            //     t.sendResponseHeaders(200, parseOut.length);
-            //     t.getResponseBody().write(parseOut);
-            //     t.getResponseBody().close();
-            // } else {
-            //     // We can send 204 status here and no response if expected error
-            //     // Maybe we can pass the specific error info in the response headers
-            //     int status = 500;
-            //     if (error.toString().contains("curl: (28) Operation timed out")) {
-            //         // Parse took too long, maybe China replay?
-            //         status = 204;
-            //     }
-            //     if (error.toString().contains("curl: (22) The requested URL returned error: 502")) {
-            //         // Google-Edge-Cache: origin retries exhausted Error: 2010
-            //         // Server error, don't retry
-            //         status = 204;
-            //     }
-            //     if (error.toString().contains("bunzip2: Data integrity error when decompressing")) {
-            //         // Corrupted replay, don't retry
-            //         status = 204;
-            //     }
-            //     if (error.toString().contains("bunzip2: Compressed file ends unexpectedly")) {
-            //         // Corrupted replay, don't retry
-            //         status = 204;
-            //     }
-            //     if (error.toString().contains("bunzip2: (stdin) is not a bzip2 file.")) {
-            //         // Tried to unzip a non-bz2 file
-            //         status = 204;
-            //     }
-            //     if (status == 204) {
-            //         t.sendResponseHeaders(status, 0);
-            //         t.getResponseBody().close();
-            //     } else {
-            //         throw new Exception("Unexpected error in parse pipeline");
-            //     }
-            // }
         }
         // Zstd magic number bytes, in file order (little-endian representation of 0xFD2FB528)
         private static final byte[] ZSTD_MAGIC = {
