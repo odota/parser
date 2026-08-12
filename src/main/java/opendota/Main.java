@@ -2,6 +2,7 @@ package opendota;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -32,6 +33,17 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 public class Main {
+
+    /**
+     * Marks an IOException as having originated from the decompressing
+     * InputStream (corrupted/truncated compressed data), as opposed to
+     * an error thrown by Parse's own logic.
+     */
+    static class DecompressionException extends IOException {
+        DecompressionException(Throwable cause) {
+            super(cause);
+        }
+    }
 
     public static void main(String[] args) throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress(Integer.valueOf("5600")), 0);
@@ -80,7 +92,6 @@ public class Main {
         @Override
         public void handle(HttpExchange t) throws IOException {
             Path downloadFile = null;
-            Path decompressedFile = null;
             try {
                 Map<String, String> query = splitQuery(t.getRequestURI());
                 URI replayUrl = URI.create(query.get("replay_url"));
@@ -116,43 +127,31 @@ public class Main {
                     header = headerIn.readNBytes(4);
                 }
 
+                // Wrap the downloaded file in the appropriate decompressing stream.
+                // Compressed streams are guarded so a failure while decompressing
+                // is distinguishable from a failure in Parse's own logic.
+                InputStream parseInput;
+                if (isZstd(header)) {
+                    parseInput = guardDecompression(
+                            new ZstdCompressorInputStream(Files.newInputStream(downloadFile)));
+                } else if (isBzip2(header)) {
+                    parseInput = guardDecompression(
+                            new BZip2CompressorInputStream(Files.newInputStream(downloadFile)));
+                } else {
+                    parseInput = Files.newInputStream(downloadFile);
+                }
+
+                // Start parser, decompressing on the fly as Parse reads
                 tStart = System.currentTimeMillis();
-                try {
-                    if (isZstd(header)) {
-                        decompressedFile = Files.createTempFile("replay-decompressed-", ".bin");
-                        try (InputStream fis = Files.newInputStream(downloadFile);
-                             ZstdCompressorInputStream zis = new ZstdCompressorInputStream(fis);
-                             OutputStream fos = Files.newOutputStream(decompressedFile,
-                                     java.nio.file.StandardOpenOption.TRUNCATE_EXISTING)) {
-                            zis.transferTo(fos);
-                        }
-                    } else if (isBzip2(header)) {
-                        decompressedFile = Files.createTempFile("replay-decompressed-", ".bin");
-                        try (InputStream fis = Files.newInputStream(downloadFile);
-                             BZip2CompressorInputStream bis = new BZip2CompressorInputStream(fis);
-                             OutputStream fos = Files.newOutputStream(decompressedFile,
-                                     java.nio.file.StandardOpenOption.TRUNCATE_EXISTING)) {
-                            bis.transferTo(fos);
-                        }
-                    } else {
-                        // Not compressed, parse directly from the downloaded file
-                        decompressedFile = downloadFile;
-                    }
-                } catch (Exception e) {
+                ByteArrayOutputStream parseOutStream = new ByteArrayOutputStream();
+                try (InputStream pi = parseInput) {
+                    new Parse(pi, parseOutStream, true);
+                } catch (DecompressionException e) {
                     e.printStackTrace();
-                    // Corrupted replay, don't retry
+                    // Corrupted/truncated replay, don't retry
                     t.sendResponseHeaders(204, 0);
                     t.getResponseBody().close();
                     return;
-                }
-                tEnd = System.currentTimeMillis();
-                System.err.format("%s: %dms\n", "decompress", tEnd - tStart);
-
-                // Start parser reading straight off disk
-                tStart = System.currentTimeMillis();
-                ByteArrayOutputStream parseOutStream = new ByteArrayOutputStream();
-                try (InputStream parseIn = Files.newInputStream(decompressedFile)) {
-                    new Parse(parseIn, parseOutStream, true);
                 }
                 byte[] parseOut = parseOutStream.toByteArray();
                 tEnd = System.currentTimeMillis();
@@ -166,13 +165,10 @@ public class Main {
                 t.sendResponseHeaders(500, 0);
                 t.getResponseBody().close();
             } finally {
-                // Clean up temp files from disk
+                // Clean up the downloaded temp file from disk
                 try {
                     if (downloadFile != null) {
                         Files.deleteIfExists(downloadFile);
-                    }
-                    if (decompressedFile != null && !decompressedFile.equals(downloadFile)) {
-                        Files.deleteIfExists(decompressedFile);
                     }
                 } catch (IOException cleanupEx) {
                     cleanupEx.printStackTrace();
@@ -206,6 +202,34 @@ public class Main {
                 && data[1] == 'Z'
                 && data[2] == 'h'
                 && data[3] >= '1' && data[3] <= '9';
+        }
+
+        /**
+         * Wraps a decompressing InputStream so that any IOException thrown
+         * while reading from it (e.g. corrupted or truncated compressed data)
+         * is rethrown as a DecompressionException, distinguishing it from
+         * errors thrown by Parse's own logic once decompression succeeds.
+         */
+        private static InputStream guardDecompression(InputStream compressorStream) {
+            return new FilterInputStream(compressorStream) {
+                @Override
+                public int read() throws IOException {
+                    try {
+                        return super.read();
+                    } catch (IOException e) {
+                        throw new DecompressionException(e);
+                    }
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) throws IOException {
+                    try {
+                        return super.read(b, off, len);
+                    } catch (IOException e) {
+                        throw new DecompressionException(e);
+                    }
+                }
+            };
         }
     }
 
