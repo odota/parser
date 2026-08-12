@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.PushbackInputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -14,16 +15,16 @@ import java.net.URLDecoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream;
@@ -91,89 +92,90 @@ public class Main {
     static class BlobHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange t) throws IOException {
-            Path downloadFile = null;
             try {
                 Map<String, String> query = splitQuery(t.getRequestURI());
                 URI replayUrl = URI.create(query.get("replay_url"));
 
-                // Download the replay directly to a temp file on disk
-                downloadFile = Files.createTempFile("replay-download-", ".bin");
-                long tStart = System.currentTimeMillis();
+                // Run download + decompression + parse as a single unit so the
+                // whole pipeline (not just connecting) is bounded by the timeout
                 ExecutorService executor = Executors.newSingleThreadExecutor();
-                final Path downloadTarget = downloadFile;
+                byte[] parseOut;
                 try {
-                    Future<Path> future = executor.submit(() -> {
-                        HttpClient client = HttpClient.newHttpClient();
-                        HttpRequest request = HttpRequest.newBuilder()
-                                .uri(replayUrl)
-                                .build();
-                        HttpResponse<Path> response = client.send(request,
-                                HttpResponse.BodyHandlers.ofFile(downloadTarget,
-                                        java.nio.file.StandardOpenOption.CREATE,
-                                        java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
-                                        java.nio.file.StandardOpenOption.WRITE));
-                        return response.body();
-                    });
-                    future.get(600, TimeUnit.SECONDS);
+                    Future<byte[]> future = executor.submit(() -> downloadDecompressAndParse(replayUrl));
+                    try {
+                        parseOut = future.get(600, TimeUnit.SECONDS);
+                    } catch (TimeoutException te) {
+                        future.cancel(true);
+                        throw new IOException("Timed out downloading/parsing replay after 600s", te);
+                    } catch (ExecutionException ee) {
+                        if (ee.getCause() instanceof DecompressionException) {
+                            throw (DecompressionException) ee.getCause();
+                        }
+                        throw ee;
+                    }
                 } finally {
                     executor.shutdownNow();
                 }
-                long tEnd = System.currentTimeMillis();
-                System.err.format("download: %dms\n", tEnd - tStart);
-
-                // Peek at the first few bytes on disk to determine compression type
-                byte[] header;
-                try (InputStream headerIn = Files.newInputStream(downloadFile)) {
-                    header = headerIn.readNBytes(4);
-                }
-
-                // Wrap the downloaded file in the appropriate decompressing stream.
-                // Compressed streams are guarded so a failure while decompressing
-                // is distinguishable from a failure in Parse's own logic.
-                InputStream parseInput;
-                if (isZstd(header)) {
-                    parseInput = guardDecompression(
-                            new ZstdCompressorInputStream(Files.newInputStream(downloadFile)));
-                } else if (isBzip2(header)) {
-                    parseInput = guardDecompression(
-                            new BZip2CompressorInputStream(Files.newInputStream(downloadFile)));
-                } else {
-                    parseInput = Files.newInputStream(downloadFile);
-                }
-
-                // Start parser, decompressing on the fly as Parse reads
-                tStart = System.currentTimeMillis();
-                ByteArrayOutputStream parseOutStream = new ByteArrayOutputStream();
-                try (InputStream pi = parseInput) {
-                    new Parse(pi, parseOutStream, true);
-                } catch (DecompressionException e) {
-                    e.printStackTrace();
-                    // Corrupted/truncated replay, don't retry
-                    t.sendResponseHeaders(204, 0);
-                    t.getResponseBody().close();
-                    return;
-                }
-                byte[] parseOut = parseOutStream.toByteArray();
-                tEnd = System.currentTimeMillis();
-                System.err.format("parse: %dms\n", tEnd - tStart);
 
                 t.sendResponseHeaders(200, parseOut.length);
                 t.getResponseBody().write(parseOut);
+                t.getResponseBody().close();
+            } catch (DecompressionException e) {
+                e.printStackTrace();
+                // Corrupted/truncated replay, don't retry
+                t.sendResponseHeaders(204, 0);
                 t.getResponseBody().close();
             } catch (Exception ex) {
                 ex.printStackTrace();
                 t.sendResponseHeaders(500, 0);
                 t.getResponseBody().close();
-            } finally {
-                // Clean up the downloaded temp file from disk
-                try {
-                    if (downloadFile != null) {
-                        Files.deleteIfExists(downloadFile);
-                    }
-                } catch (IOException cleanupEx) {
-                    cleanupEx.printStackTrace();
-                }
             }
+        }
+
+        /**
+         * Connects, downloads, decompresses (if needed), and parses the replay,
+         * all streamed with no intermediate temp file or full in-memory buffer
+         * of the raw/compressed bytes. Runs on the executor thread so the whole
+         * pipeline can be bounded and cancelled by a single timeout.
+         */
+        private static byte[] downloadDecompressAndParse(URI replayUrl) throws IOException, InterruptedException {
+            long tStart = System.currentTimeMillis();
+            HttpClient client = HttpClient.newHttpClient();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(replayUrl)
+                    .build();
+            HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            InputStream downloadStream = response.body();
+
+            // Peek at the first few bytes to determine compression type, then
+            // push them back so the full stream is available for decompression
+            PushbackInputStream pushback = new PushbackInputStream(downloadStream, 4);
+            byte[] header = pushback.readNBytes(4);
+            if (header.length > 0) {
+                pushback.unread(header);
+            }
+
+            // Wrap the download stream in the appropriate decompressing stream.
+            // Compressed streams are guarded so a failure while decompressing
+            // is distinguishable from a failure in Parse's own logic.
+            InputStream parseInput;
+            if (isZstd(header)) {
+                parseInput = guardDecompression(new ZstdCompressorInputStream(pushback));
+            } else if (isBzip2(header)) {
+                parseInput = guardDecompression(new BZip2CompressorInputStream(pushback));
+            } else {
+                parseInput = pushback;
+            }
+
+            // Parse, downloading and decompressing on the fly as Parse reads
+            ByteArrayOutputStream parseOutStream = new ByteArrayOutputStream();
+            try (InputStream pi = parseInput) {
+                new Parse(pi, parseOutStream, true);
+            }
+            byte[] parseOut = parseOutStream.toByteArray();
+            long tEnd = System.currentTimeMillis();
+            System.err.format("download+decompress+parse: %dms\n", tEnd - tStart);
+            return parseOut;
         }
         // Zstd magic number bytes, in file order (little-endian representation of 0xFD2FB528)
         private static final byte[] ZSTD_MAGIC = {
