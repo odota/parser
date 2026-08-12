@@ -36,6 +36,17 @@ import com.sun.net.httpserver.HttpServer;
 public class Main {
 
     /**
+     * Marks an IOException as having originated from reading the raw
+     * download stream (network/connection failure), as opposed to a
+     * failure while decompressing already-downloaded bytes.
+     */
+    static class DownloadException extends IOException {
+        DownloadException(Throwable cause) {
+            super(cause);
+        }
+    }
+
+    /**
      * Marks an IOException as having originated from the decompressing
      * InputStream (corrupted/truncated compressed data), as opposed to
      * an error thrown by Parse's own logic.
@@ -145,7 +156,7 @@ public class Main {
                     .uri(replayUrl)
                     .build();
             HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
-            InputStream downloadStream = response.body();
+            InputStream downloadStream = guardDownload(response.body());
 
             // Peek at the first few bytes to determine compression type, then
             // push them back so the full stream is available for decompression
@@ -207,10 +218,41 @@ public class Main {
         }
 
         /**
+         * Wraps the raw download InputStream so that any IOException thrown
+         * while reading from it (e.g. a network/connection failure) is
+         * rethrown as a DownloadException, distinguishing it from a failure
+         * that occurs while decompressing already-downloaded bytes.
+         */
+        private static InputStream guardDownload(InputStream downloadStream) {
+            return new FilterInputStream(downloadStream) {
+                @Override
+                public int read() throws IOException {
+                    try {
+                        return super.read();
+                    } catch (IOException e) {
+                        throw new DownloadException(e);
+                    }
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) throws IOException {
+                    try {
+                        return super.read(b, off, len);
+                    } catch (IOException e) {
+                        throw new DownloadException(e);
+                    }
+                }
+            };
+        }
+
+        /**
          * Wraps a decompressing InputStream so that any IOException thrown
          * while reading from it (e.g. corrupted or truncated compressed data)
          * is rethrown as a DecompressionException, distinguishing it from
          * errors thrown by Parse's own logic once decompression succeeds.
+         * A DownloadException from the underlying stream is passed through
+         * unchanged, since that failure happened at the network layer, not
+         * during decompression.
          */
         private static InputStream guardDecompression(InputStream compressorStream) {
             return new FilterInputStream(compressorStream) {
@@ -218,6 +260,8 @@ public class Main {
                 public int read() throws IOException {
                     try {
                         return super.read();
+                    } catch (DownloadException e) {
+                        throw e;
                     } catch (IOException e) {
                         throw new DecompressionException(e);
                     }
@@ -227,6 +271,8 @@ public class Main {
                 public int read(byte[] b, int off, int len) throws IOException {
                     try {
                         return super.read(b, off, len);
+                    } catch (DownloadException e) {
+                        throw e;
                     } catch (IOException e) {
                         throw new DecompressionException(e);
                     }
