@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.PushbackInputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -34,17 +33,6 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 public class Main {
-
-    /**
-     * Marks an IOException as having originated from reading the raw
-     * download stream (network/connection failure), as opposed to a
-     * failure while decompressing already-downloaded bytes.
-     */
-    static class DownloadException extends IOException {
-        DownloadException(Throwable cause) {
-            super(cause);
-        }
-    }
 
     /**
      * Marks an IOException as having originated from the decompressing
@@ -155,37 +143,38 @@ public class Main {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(replayUrl)
                     .build();
-            HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
-            InputStream downloadStream = guardDownload(response.body());
+            HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
+            byte[] compressIn = response.body();
+            long tDownloaded = System.currentTimeMillis();
+            System.err.format("download: %dms\n", tDownloaded - tStart);
 
-            // Peek at the first few bytes to determine compression type, then
-            // push them back so the full stream is available for decompression
-            PushbackInputStream pushback = new PushbackInputStream(downloadStream, 4);
-            byte[] header = pushback.readNBytes(4);
-            if (header.length > 0) {
-                pushback.unread(header);
-            }
+            // Determine compression type from the first few bytes
+            byte[] header = compressIn.length >= 4
+                    ? java.util.Arrays.copyOf(compressIn, 4)
+                    : compressIn;
 
-            // Wrap the download stream in the appropriate decompressing stream.
+            // Wrap the downloaded bytes in the appropriate decompressing stream.
             // Compressed streams are guarded so a failure while decompressing
             // is distinguishable from a failure in Parse's own logic.
             InputStream parseInput;
             if (isZstd(header)) {
-                parseInput = guardDecompression(new ZstdCompressorInputStream(pushback));
+                parseInput = guardDecompression(
+                        new ZstdCompressorInputStream(new java.io.ByteArrayInputStream(compressIn)));
             } else if (isBzip2(header)) {
-                parseInput = guardDecompression(new BZip2CompressorInputStream(pushback));
+                parseInput = guardDecompression(
+                        new BZip2CompressorInputStream(new java.io.ByteArrayInputStream(compressIn)));
             } else {
-                parseInput = pushback;
+                parseInput = new java.io.ByteArrayInputStream(compressIn);
             }
 
-            // Parse, downloading and decompressing on the fly as Parse reads
+            // Parse, decompressing on the fly as Parse reads
             ByteArrayOutputStream parseOutStream = new ByteArrayOutputStream();
             try (InputStream pi = parseInput) {
                 new Parse(pi, parseOutStream, true);
             }
             byte[] parseOut = parseOutStream.toByteArray();
             long tEnd = System.currentTimeMillis();
-            System.err.format("download+decompress+parse: %dms\n", tEnd - tStart);
+            System.err.format("decompress+parse: %dms\n", tEnd - tDownloaded);
             return parseOut;
         }
         // Zstd magic number bytes, in file order (little-endian representation of 0xFD2FB528)
@@ -218,41 +207,10 @@ public class Main {
         }
 
         /**
-         * Wraps the raw download InputStream so that any IOException thrown
-         * while reading from it (e.g. a network/connection failure) is
-         * rethrown as a DownloadException, distinguishing it from a failure
-         * that occurs while decompressing already-downloaded bytes.
-         */
-        private static InputStream guardDownload(InputStream downloadStream) {
-            return new FilterInputStream(downloadStream) {
-                @Override
-                public int read() throws IOException {
-                    try {
-                        return super.read();
-                    } catch (IOException e) {
-                        throw new DownloadException(e);
-                    }
-                }
-
-                @Override
-                public int read(byte[] b, int off, int len) throws IOException {
-                    try {
-                        return super.read(b, off, len);
-                    } catch (IOException e) {
-                        throw new DownloadException(e);
-                    }
-                }
-            };
-        }
-
-        /**
          * Wraps a decompressing InputStream so that any IOException thrown
          * while reading from it (e.g. corrupted or truncated compressed data)
          * is rethrown as a DecompressionException, distinguishing it from
          * errors thrown by Parse's own logic once decompression succeeds.
-         * A DownloadException from the underlying stream is passed through
-         * unchanged, since that failure happened at the network layer, not
-         * during decompression.
          */
         private static InputStream guardDecompression(InputStream compressorStream) {
             return new FilterInputStream(compressorStream) {
@@ -260,8 +218,6 @@ public class Main {
                 public int read() throws IOException {
                     try {
                         return super.read();
-                    } catch (DownloadException e) {
-                        throw e;
                     } catch (IOException e) {
                         throw new DecompressionException(e);
                     }
@@ -271,8 +227,6 @@ public class Main {
                 public int read(byte[] b, int off, int len) throws IOException {
                     try {
                         return super.read(b, off, len);
-                    } catch (DownloadException e) {
-                        throw e;
                     } catch (IOException e) {
                         throw new DecompressionException(e);
                     }
