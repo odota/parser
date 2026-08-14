@@ -94,27 +94,7 @@ public class Main {
             try {
                 Map<String, String> query = splitQuery(t.getRequestURI());
                 URI replayUrl = URI.create(query.get("replay_url"));
-
-                // Run download + decompression + parse as a single unit so the
-                // whole pipeline (not just connecting) is bounded by the timeout
-                ExecutorService executor = Executors.newSingleThreadExecutor();
-                byte[] parseOut;
-                try {
-                    Future<byte[]> future = executor.submit(() -> downloadDecompressAndParse(replayUrl));
-                    try {
-                        parseOut = future.get(600, TimeUnit.SECONDS);
-                    } catch (TimeoutException te) {
-                        future.cancel(true);
-                        throw new IOException("Timed out downloading/parsing replay after 600s", te);
-                    } catch (ExecutionException ee) {
-                        if (ee.getCause() instanceof DecompressionException) {
-                            throw (DecompressionException) ee.getCause();
-                        }
-                        throw ee;
-                    }
-                } finally {
-                    executor.shutdownNow();
-                }
+                byte[] parseOut = downloadDecompressAndParse(replayUrl);
 
                 t.sendResponseHeaders(200, parseOut.length);
                 t.getResponseBody().write(parseOut);
@@ -260,7 +240,7 @@ class RegisterTask extends TimerTask {
                     // Otherwise, use hostname -i to get internal IP
                     ip = RegisterTask.shellExec("hostname -i");
                 }
-                long nproc = Math.round(Math.min(Runtime.getRuntime().availableProcessors() * 5, 50));
+                long nproc = Math.round(Math.min(Runtime.getRuntime().availableProcessors() * 4, 48));
                 String postCmd = "curl -X POST --max-time 60 -L " + System.getenv().get("SERVICE_REGISTRY_HOST")
                         + "/register/parser/" + ip + ":5600" + "?size=" + nproc + "&key="
                         + System.getenv().get("RETRIEVER_SECRET");
