@@ -121,6 +121,12 @@ public class Main {
                 t.sendResponseHeaders(500, 0);
                 t.getResponseBody().close();
             } catch (Exception ex) {
+                if (ex.getMessage().equals("given stream does not seem to contain a valid replay")) {
+                    // Corrupted/truncated replay, don't retry
+                    t.sendResponseHeaders(204, 0);
+                    t.getResponseBody().close();
+                    return;
+                }
                 ex.printStackTrace();
                 t.sendResponseHeaders(500, 0);
                 t.getResponseBody().close();
