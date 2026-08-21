@@ -87,6 +87,7 @@ public class Entry implements Cloneable {
     public Boolean interval;
     public String event;
     public Integer killer;
+    public Boolean smoke;
 
     public Entry() {
     }
