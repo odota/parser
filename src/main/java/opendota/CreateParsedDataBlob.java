@@ -60,6 +60,7 @@ class PlayerData {
     public List<Entry> sen_left_log = new ArrayList<>();
     public List<Map<String, Object>> purchase_log = new ArrayList<>();
     public List<Map<String, Object>> kills_log = new ArrayList<>();
+    public List<Map<String, Object>> deaths_log = new ArrayList<>();
     public List<Entry> buyback_log = new ArrayList<>();
     public List<Map<String, Object>> runes_log = new ArrayList<>();
     public List<Entry> connection_log = new ArrayList<>();
@@ -357,7 +358,7 @@ public class CreateParsedDataBlob {
         } else if (e.interval != null && e.interval) {
             List<Integer> targetList = getPlayerIntegerList(player, e.type);
             targetList.add(e.value);
-        } else if (Arrays.asList("purchase_log", "kills_log", "runes_log", "neutral_tokens_log").contains(e.type)) {
+        } else if (Arrays.asList("purchase_log", "kills_log", "deaths_log", "runes_log", "neutral_tokens_log").contains(e.type)) {
             Map<String, Object> obj = new HashMap<>();
             obj.put("time", e.time);
             obj.put("key", e.key);
@@ -378,10 +379,19 @@ public class CreateParsedDataBlob {
                 obj.put("smoke", e.smoke);
             }
 
+            if ("deaths_log".equals(e.type)) {
+                obj.put("gold_lost", e.gold_lost);
+                if (e.time_dead != null) {
+                    obj.put("time_dead", e.time_dead);
+                }
+            }
+
             if ("purchase_log".equals(e.type)) {
                 player.purchase_log.add(obj);
             } else if ("kills_log".equals(e.type)) {
                 player.kills_log.add(obj);
+            } else if ("deaths_log".equals(e.type)) {
+                player.deaths_log.add(obj);
             } else if ("runes_log".equals(e.type)) {
                 player.runes_log.add(obj);
             } else if ("neutral_tokens_log".equals(e.type)) {
@@ -516,19 +526,24 @@ public class CreateParsedDataBlob {
     // window. WK's ult does apply a modifier while reincarnating, at the death
     // itself. Both are collected in a pre-scan keyed by event time because the
     // chat, modifier and death entries around a reincarnation are not strictly
-    // ordered in the stream.
+    // ordered in the stream. The same pass collects the deaths_log lookups:
+    // gold lost on death (a separate GOLD record, also not ordered against the
+    // death entry) and the dead stretches, which double as time_dead.
     private static final String WK_HERO = "npc_dota_hero_skeleton_king";
     private static final String WK_REINCARNATION_MODIFIER = "modifier_skeleton_king_reincarnation";
     private static final int AEGIS_EXPIRY_SECONDS = 300;
     // Reincarnation revives in ~3s; the shortest real respawn is far longer,
     // so a WK back on his feet this fast without a buyback reincarnated
     private static final int WK_REVIVE_MAX_SECONDS = 4;
+    // EDOTA_ModifyGold_Reason: 1 = hero death (the negative bucket in gold_reasons)
+    private static final int GOLD_REASON_DEATH = 1;
 
     // aegis pickups: slot -> list of {pickupTime, used}
     private Map<Integer, List<int[]>> aegisPickupsBySlot = new HashMap<>();
     private Map<Integer, List<Integer>> reincarnationTimesBySlot = new HashMap<>();
     private Map<Integer, List<int[]>> deadWindowsBySlot = new HashMap<>();
     private Map<Integer, List<Integer>> buybackTimesBySlot = new HashMap<>();
+    private Map<Integer, Map<Integer, Integer>> deathGoldBySlot = new HashMap<>();
     private Integer wkSlot = null;
 
     private void precomputeReincarnations(List<Entry> entries, Metadata meta) {
@@ -551,6 +566,13 @@ public class CreateParsedDataBlob {
                 }
             } else if ("DOTA_COMBATLOG_BUYBACK".equals(e.type) && e.value != null) {
                 buybackTimesBySlot.computeIfAbsent(e.value, k -> new ArrayList<>()).add(e.time);
+            } else if ("DOTA_COMBATLOG_GOLD".equals(e.type) && e.gold_reason != null
+                    && e.gold_reason == GOLD_REASON_DEATH && e.targetname != null && e.value != null) {
+                Integer slot = meta.hero_to_slot.get(e.targetname);
+                if (slot != null) {
+                    deathGoldBySlot.computeIfAbsent(slot, k -> new HashMap<>())
+                            .merge(e.time, Math.abs(e.value), Integer::sum);
+                }
             } else if ("interval".equals(e.type) && e.slot != null && e.life_state != null) {
                 Integer prev = lastState.get(e.slot);
                 if ((prev == null || prev == 0) && e.life_state != 0) {
@@ -565,6 +587,8 @@ public class CreateParsedDataBlob {
                 lastState.put(e.slot, e.life_state);
             }
         }
+        // deaths still open when the replay ends stay out of deadWindowsBySlot:
+        // their length is unknown, so those deaths get no time_dead
     }
 
     private boolean consumeReincarnationDeath(Integer slot, Integer time) {
@@ -673,6 +697,34 @@ public class CreateParsedDataBlob {
             }
         }
         return false;
+    }
+
+    private Integer lookupDeathGold(Integer slot, Integer time) {
+        Map<Integer, Integer> byTime = slot == null ? null : deathGoldBySlot.get(slot);
+        if (byTime == null || time == null) {
+            return 0;
+        }
+        for (int dt : new int[] { 0, 1, -1, 2, -2 }) {
+            Integer v = byTime.remove(time + dt);
+            if (v != null) {
+                return v;
+            }
+        }
+        return 0;
+    }
+
+    private Integer lookupTimeDead(Integer slot, Integer time) {
+        List<int[]> windows = slot == null ? null : deadWindowsBySlot.get(slot);
+        if (windows == null || time == null) {
+            return null;
+        }
+        for (int[] w : windows) {
+            // the life_state flip shows up on the tick after the death event
+            if (w[0] >= time - 1 && w[0] <= time + 3) {
+                return w[1] - w[0];
+            }
+        }
+        return null;
     }
 
     private List<Entry> processExpand(List<Entry> entries, Metadata meta) {
@@ -896,6 +948,22 @@ public class CreateParsedDataBlob {
 
         if (consumeReincarnationDeath(meta.hero_to_slot.get(key), e.time)) {
             return;
+        }
+
+        if (e.targethero != null && e.targethero &&
+                (e.targetillusion == null || !e.targetillusion)) {
+            // deaths_log includes self-kills (e.g. Techies suicide): the death is
+            // real (it counts on the scoreboard and loses gold) even though no
+            // kill is credited below
+            Entry deathLog = new Entry();
+            deathLog.time = e.time;
+            deathLog.unit = key;
+            deathLog.key = unit;
+            deathLog.type = "deaths_log";
+            Integer victimSlot = meta.hero_to_slot.get(key);
+            deathLog.gold_lost = lookupDeathGold(victimSlot, e.time);
+            deathLog.time_dead = lookupTimeDead(victimSlot, e.time);
+            expand(deathLog, output, meta);
         }
 
         // Suicides (e.g. Techies) are not kills, but only when the attacker is
@@ -1609,7 +1677,7 @@ public class CreateParsedDataBlob {
         return Arrays.asList("times", "gold_t", "lh_t", "dn_t", "xp_t",
                 "camps_stacked_t", "hero_damage_t", "hero_healing_t", "obs_log",
                 "sen_log", "obs_left_log", "sen_left_log", "purchase_log", "kills_log",
-                "buyback_log", "runes_log", "connection_log", "neutral_tokens_log",
+                "deaths_log", "buyback_log", "runes_log", "connection_log", "neutral_tokens_log",
                 "neutral_item_history").contains(type);
     }
 
