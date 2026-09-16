@@ -51,6 +51,7 @@ class PlayerData {
     public List<Integer> lh_t = new ArrayList<>();
     public List<Integer> dn_t = new ArrayList<>();
     public List<Integer> xp_t = new ArrayList<>();
+    public List<Integer> networth_t = new ArrayList<>();
     public List<Integer> camps_stacked_t = new ArrayList<>();
     public List<Integer> hero_damage_t = new ArrayList<>();
     public List<Integer> hero_healing_t = new ArrayList<>();
@@ -1398,6 +1399,10 @@ public class CreateParsedDataBlob {
                 addIntervalData(e, output, meta, "xp_t", e.xp);
                 addIntervalData(e, output, meta, "lh_t", e.lh);
                 addIntervalData(e, output, meta, "dn_t", e.denies);
+                if (e.networth != null) {
+                    // not present in old replays; leave the array empty rather than filling with nulls
+                    addIntervalData(e, output, meta, "networth_t", e.networth);
+                }
                 if (e.camps_stacked != null) {
                     // not present in old replays; leave the array empty rather than filling with nulls
                     addIntervalData(e, output, meta, "camps_stacked_t", e.camps_stacked);
@@ -1674,7 +1679,7 @@ public class CreateParsedDataBlob {
 
     // Helper methods
     private boolean isArrayField(String type) {
-        return Arrays.asList("times", "gold_t", "lh_t", "dn_t", "xp_t",
+        return Arrays.asList("times", "gold_t", "lh_t", "dn_t", "xp_t", "networth_t",
                 "camps_stacked_t", "hero_damage_t", "hero_healing_t", "obs_log",
                 "sen_log", "obs_left_log", "sen_left_log", "purchase_log", "kills_log",
                 "deaths_log", "buyback_log", "runes_log", "connection_log", "neutral_tokens_log",
@@ -1714,6 +1719,8 @@ public class CreateParsedDataBlob {
                 return player.dn_t;
             case "xp_t":
                 return player.xp_t;
+            case "networth_t":
+                return player.networth_t;
             case "camps_stacked_t":
                 return player.camps_stacked_t;
             case "hero_damage_t":
