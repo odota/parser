@@ -382,6 +382,7 @@ public class CreateParsedDataBlob {
 
             if ("deaths_log".equals(e.type)) {
                 obj.put("gold_lost", e.gold_lost);
+                obj.put("gold_fed", e.gold_fed);
                 if (e.time_dead != null) {
                     obj.put("time_dead", e.time_dead);
                 }
@@ -538,6 +539,9 @@ public class CreateParsedDataBlob {
     private static final int WK_REVIVE_MAX_SECONDS = 4;
     // EDOTA_ModifyGold_Reason: 1 = hero death (the negative bucket in gold_reasons)
     private static final int GOLD_REASON_DEATH = 1;
+    // 12 = hero kill, the bounty the killer and the assisters collect. It is not
+    // the mirror of reason 1: the game pays out more than the victim drops.
+    private static final int GOLD_REASON_HERO_KILL = 12;
 
     // aegis pickups: slot -> list of {pickupTime, used}
     private Map<Integer, List<int[]>> aegisPickupsBySlot = new HashMap<>();
@@ -545,6 +549,10 @@ public class CreateParsedDataBlob {
     private Map<Integer, List<int[]>> deadWindowsBySlot = new HashMap<>();
     private Map<Integer, List<Integer>> buybackTimesBySlot = new HashMap<>();
     private Map<Integer, Map<Integer, Integer>> deathGoldBySlot = new HashMap<>();
+    // bounty paid out, keyed by the receiving team rather than by player: the
+    // gold entry names who was paid, and every payout for one death goes to the
+    // side that did the killing
+    private Map<Boolean, Map<Integer, Integer>> killGoldByTeam = new HashMap<>();
     private Integer wkSlot = null;
 
     private void precomputeReincarnations(List<Entry> entries, Metadata meta) {
@@ -568,11 +576,15 @@ public class CreateParsedDataBlob {
             } else if ("DOTA_COMBATLOG_BUYBACK".equals(e.type) && e.value != null) {
                 buybackTimesBySlot.computeIfAbsent(e.value, k -> new ArrayList<>()).add(e.time);
             } else if ("DOTA_COMBATLOG_GOLD".equals(e.type) && e.gold_reason != null
-                    && e.gold_reason == GOLD_REASON_DEATH && e.targetname != null && e.value != null) {
+                    && e.targetname != null && e.value != null) {
                 Integer slot = meta.hero_to_slot.get(e.targetname);
-                if (slot != null) {
+                Integer playerSlot = slot == null ? null : meta.slot_to_player_slot.get(slot);
+                if (slot != null && e.gold_reason == GOLD_REASON_DEATH) {
                     deathGoldBySlot.computeIfAbsent(slot, k -> new HashMap<>())
                             .merge(e.time, Math.abs(e.value), Integer::sum);
+                } else if (playerSlot != null && e.gold_reason == GOLD_REASON_HERO_KILL) {
+                    killGoldByTeam.computeIfAbsent(isRadiant(playerSlot), k -> new HashMap<>())
+                            .merge(e.time, e.value, Integer::sum);
                 }
             } else if ("interval".equals(e.type) && e.slot != null && e.life_state != null) {
                 Integer prev = lastState.get(e.slot);
@@ -702,6 +714,26 @@ public class CreateParsedDataBlob {
 
     private Integer lookupDeathGold(Integer slot, Integer time) {
         Map<Integer, Integer> byTime = slot == null ? null : deathGoldBySlot.get(slot);
+        if (byTime == null || time == null) {
+            return 0;
+        }
+        for (int dt : new int[] { 0, 1, -1, 2, -2 }) {
+            Integer v = byTime.remove(time + dt);
+            if (v != null) {
+                return v;
+            }
+        }
+        return 0;
+    }
+
+    // Same shape as lookupDeathGold, and the same limitation: the bucket for a
+    // second is consumed by the first death that claims it, so two deaths on the
+    // same side within the same second split as everything/nothing. Their sum is
+    // still the gold that side fed.
+    private Integer lookupKillGold(Boolean receivingTeamIsRadiant, Integer time) {
+        Map<Integer, Integer> byTime = receivingTeamIsRadiant == null
+                ? null
+                : killGoldByTeam.get(receivingTeamIsRadiant);
         if (byTime == null || time == null) {
             return 0;
         }
@@ -962,7 +994,10 @@ public class CreateParsedDataBlob {
             deathLog.key = unit;
             deathLog.type = "deaths_log";
             Integer victimSlot = meta.hero_to_slot.get(key);
+            Integer victimPlayerSlot = victimSlot == null ? null : meta.slot_to_player_slot.get(victimSlot);
             deathLog.gold_lost = lookupDeathGold(victimSlot, e.time);
+            deathLog.gold_fed = lookupKillGold(
+                    victimPlayerSlot == null ? null : !isRadiant(victimPlayerSlot), e.time);
             deathLog.time_dead = lookupTimeDead(victimSlot, e.time);
             expand(deathLog, output, meta);
         }
