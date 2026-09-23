@@ -383,6 +383,9 @@ public class CreateParsedDataBlob {
             if ("deaths_log".equals(e.type)) {
                 obj.put("gold_lost", e.gold_lost);
                 obj.put("gold_fed", e.gold_fed);
+                if (e.gold_fed_shared != null) {
+                    obj.put("gold_fed_shared", e.gold_fed_shared);
+                }
                 if (e.time_dead != null) {
                     obj.put("time_dead", e.time_dead);
                 }
@@ -553,6 +556,11 @@ public class CreateParsedDataBlob {
     // gold entry names who was paid, and every payout for one death goes to the
     // side that did the killing
     private Map<Boolean, Map<Integer, Integer>> killGoldByTeam = new HashMap<>();
+    // which death took the bucket for a given team and second, so a later
+    // death that finds it gone can be told apart from one that paid no bounty
+    private Map<String, Entry> killGoldTakenBy = new HashMap<>();
+    private String lastKillGoldKey = null;
+    private boolean sharedGoldFed = false;
     private Integer wkSlot = null;
 
     private void precomputeReincarnations(List<Entry> entries, Metadata meta) {
@@ -740,7 +748,19 @@ public class CreateParsedDataBlob {
         for (int dt : new int[] { 0, 1, -1, 2, -2 }) {
             Integer v = byTime.remove(time + dt);
             if (v != null) {
+                lastKillGoldKey = receivingTeamIsRadiant + ":" + (time + dt);
                 return v;
+            }
+        }
+        for (int dt : new int[] { 0, 1, -1, 2, -2 }) {
+            Entry other = killGoldTakenBy.get(receivingTeamIsRadiant + ":" + (time + dt));
+            if (other != null) {
+                // another death on this side already took the bucket: that one
+                // reads the whole payout and this one reads 0, so neither number
+                // stands on its own. Their sum still does, and both say so
+                other.gold_fed_shared = true;
+                sharedGoldFed = true;
+                break;
             }
         }
         return 0;
@@ -996,10 +1016,20 @@ public class CreateParsedDataBlob {
             Integer victimSlot = meta.hero_to_slot.get(key);
             Integer victimPlayerSlot = victimSlot == null ? null : meta.slot_to_player_slot.get(victimSlot);
             deathLog.gold_lost = lookupDeathGold(victimSlot, e.time);
-            deathLog.gold_fed = lookupKillGold(
+            lastKillGoldKey = null;
+            sharedGoldFed = false;
+            // a suicide pays the other side nothing, so it must not take the
+            // bucket for its second: another death there earned it
+            boolean suicide = e.attackername != null && e.attackername.equals(key)
+                    && (e.attackerillusion == null || !e.attackerillusion);
+            deathLog.gold_fed = suicide ? 0 : lookupKillGold(
                     victimPlayerSlot == null ? null : !isRadiant(victimPlayerSlot), e.time);
+            deathLog.gold_fed_shared = sharedGoldFed ? Boolean.TRUE : null;
             deathLog.time_dead = lookupTimeDead(victimSlot, e.time);
-            expand(deathLog, output, meta);
+            Entry emitted = expand(deathLog, output, meta);
+            if (lastKillGoldKey != null) {
+                killGoldTakenBy.put(lastKillGoldKey, emitted);
+            }
         }
 
         // Suicides (e.g. Techies) are not kills, but only when the attacker is
@@ -1478,7 +1508,7 @@ public class CreateParsedDataBlob {
         expand(interval, output, meta);
     }
 
-    private void expand(Entry e, List<Entry> output, Metadata meta) {
+    private Entry expand(Entry e, List<Entry> output, Metadata meta) {
         if (e.x != null) {
             e.x = Math.round(e.x * 10.0) / 10.0f;
         }
@@ -1500,6 +1530,7 @@ public class CreateParsedDataBlob {
         expanded.slot = slot;
         expanded.player_slot = playerSlot;
         output.add(expanded);
+        return expanded;
     }
 
     private Metadata processMetadata(List<Entry> entries) {
