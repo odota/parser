@@ -74,8 +74,17 @@ public class Main {
     static class BlobHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange t) throws IOException {
-            Map<String, String> query = splitQuery(t.getRequestURI());
-            URI replayUrl = URI.create(query.get("replay_url"));
+            URI replayUrl;
+            try {
+                Map<String, String> query = splitQuery(t.getRequestURI());
+                replayUrl = URI.create(query.get("replay_url"));
+            } catch (Exception e) {
+                e.printStackTrace();
+                // Missing or malformed replay_url query parameter
+                t.sendResponseHeaders(500, 0);
+                t.getResponseBody().close();
+                return;
+            }
             // Stage 1: download the full replay into memory
             long tStart = System.currentTimeMillis();
             byte[] compressIn;
@@ -130,8 +139,8 @@ public class Main {
                 new Parse(new ByteArrayInputStream(compressOut), parseOutStream, true);
                 parseOut = parseOutStream.toByteArray();
             } catch (Exception ex) {
-                if (ex.getMessage().equals("given stream does not seem to contain a valid replay")) {
-                    e.printStackTrace();
+                if ("given stream does not seem to contain a valid replay".equals(ex.getMessage())) {
+                    ex.printStackTrace();
                     // Corrupted/truncated replay, don't retry
                     t.sendResponseHeaders(204, 0);
                     t.getResponseBody().close();
