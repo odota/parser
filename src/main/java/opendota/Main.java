@@ -28,12 +28,18 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 public class Main {
+    // Caps concurrent /blob requests (and threads) since each one holds full
+    // in-memory copies of the replay (raw, decompressed, and parsed output)
+    // at once; an unbounded thread pool could spawn enough concurrent
+    // requests to exhaust available memory under load.
+    static final int MAX_THREADS = Math.max(1, (int) Math.min(Runtime.getRuntime().availableProcessors(), 16));
+
     public static void main(String[] args) throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress(Integer.valueOf("5600")), 0);
         server.createContext("/", new MyHandler());
         server.createContext("/healthz", new HealthHandler());
         server.createContext("/blob", new BlobHandler());
-        server.setExecutor(java.util.concurrent.Executors.newCachedThreadPool());
+        server.setExecutor(java.util.concurrent.Executors.newFixedThreadPool(MAX_THREADS));
         server.start();
 
         // Re-register ourselves
@@ -214,7 +220,7 @@ class RegisterTask extends TimerTask {
                     // Otherwise, use hostname -i to get internal IP
                     ip = RegisterTask.shellExec("hostname -i");
                 }
-                long nproc = Math.round(Math.min(Runtime.getRuntime().availableProcessors(), 8));
+                long nproc = Main.MAX_THREADS;
                 String postCmd = "curl -X POST --max-time 60 -L " + System.getenv().get("SERVICE_REGISTRY_HOST")
                         + "/register/parser/" + ip + ":5600" + "?size=" + nproc + "&key="
                         + System.getenv().get("RETRIEVER_SECRET");
