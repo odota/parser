@@ -88,6 +88,8 @@ public class Entry implements Cloneable {
     public String event;
     public Integer killer;
     public Boolean smoke;
+    // assists_log fields
+    public Boolean ambiguous;
     // deaths_log fields
     public Integer gold_lost;
     public Integer time_dead;
