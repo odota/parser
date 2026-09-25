@@ -32,7 +32,7 @@ public class Main {
     // in-memory copies of the replay (raw, decompressed, and parsed output)
     // at once; an unbounded thread pool could spawn enough concurrent
     // requests to exhaust available memory under load.
-    static final int MAX_THREADS = Math.max(1, (int) Math.min(Runtime.getRuntime().availableProcessors() * 2, 16));
+    static final int MAX_THREADS = Math.max(1, (int) Math.min(Runtime.getRuntime().availableProcessors() * 3, 24));
 
     public static void main(String[] args) throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress(Integer.valueOf("5600")), 0);
