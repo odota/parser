@@ -98,6 +98,7 @@ public class Main {
                 HttpClient client = HttpClient.newHttpClient();
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(replayUrl)
+                        .timeout(Duration.ofSeconds(180))
                         .build();
                 HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
                 compressIn = response.body();
