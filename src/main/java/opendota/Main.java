@@ -264,7 +264,7 @@ class RegisterTask extends TimerTask {
                     ip = java.net.InetAddress.getLocalHost().getHostAddress();
                 }
                 long nproc = Main.MAX_THREADS;
-                String registerUrl = registryHost + "/register/parser/" + ip + ":5600"
+                String registerUrl = "http://" + registryHost + "/register/parser/" + ip + ":5600"
                         + "?size=" + nproc + "&key=" + System.getenv().get("RETRIEVER_SECRET");
                 System.err.println("POST " + registerUrl);
                 httpPost(registerUrl);
