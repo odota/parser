@@ -195,34 +195,34 @@ public class CreateParsedDataBlob {
         long tStart = System.currentTimeMillis();
         Metadata meta = processMetadata(entries);
         long tEnd = System.currentTimeMillis();
-        System.err.format("metadata: %sms\n", tEnd - tStart);
+        //System.err.format("metadata: %sms\n", tEnd - tStart);
 
         tStart = System.currentTimeMillis();
         List<Entry> expanded = processExpand(entries, meta);
         tEnd = System.currentTimeMillis();
-        System.err.format("expand: %sms\n", tEnd - tStart);
+        //System.err.format("expand: %sms\n", tEnd - tStart);
 
         tStart = System.currentTimeMillis();
         ParsedData parsedData = processParsedData(expanded, new ParsedData(), meta);
         tEnd = System.currentTimeMillis();
-        System.err.format("populate: %sms\n", tEnd - tStart);
+        //System.err.format("populate: %sms\n", tEnd - tStart);
 
         tStart = System.currentTimeMillis();
         parsedData.teamfights = processTeamfights(expanded, meta);
         tEnd = System.currentTimeMillis();
-        System.err.format("teamfights: %sms\n", tEnd - tStart);
+        //System.err.format("teamfights: %sms\n", tEnd - tStart);
 
         tStart = System.currentTimeMillis();
         parsedData.pauses = processPauses(entries);
         tEnd = System.currentTimeMillis();
-        System.err.format("pauses: %sms\n", tEnd - tStart);
+        //System.err.format("pauses: %sms\n", tEnd - tStart);
 
         tStart = System.currentTimeMillis();
         AllPlayersResult ap = processAllPlayers(entries, meta);
         parsedData.radiant_gold_adv = ap.radiantGoldAdv;
         parsedData.radiant_xp_adv = ap.radiantXpAdv;
         tEnd = System.currentTimeMillis();
-        System.err.format("processAllPlayers: %sms\n", tEnd - tStart);
+        //System.err.format("processAllPlayers: %sms\n", tEnd - tStart);
 
         return parsedData;
     }
