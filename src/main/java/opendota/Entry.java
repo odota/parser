@@ -90,6 +90,8 @@ public class Entry implements Cloneable {
     public Boolean smoke;
     // deaths_log fields
     public Integer gold_lost;
+    public Integer gold_fed;
+    public Boolean gold_fed_shared;
     public Integer time_dead;
 
     public Entry() {
