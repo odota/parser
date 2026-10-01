@@ -96,6 +96,7 @@ public class Main {
                 Map<String, String> query = splitQuery(t.getRequestURI());
                 replayUrl = URI.create(query.get("replay_url"));
             } catch (Exception e) {
+                System.err.println("Failed to parse replay_url from request: " + t.getRequestURI());
                 e.printStackTrace();
                 // Missing or malformed replay_url query parameter
                 t.sendResponseHeaders(500, 0);
@@ -115,13 +116,14 @@ public class Main {
                 compressIn = response.body();
             } catch (Exception e) {
                 e.printStackTrace();
+                System.err.println("Download failed for replay_url: " + replayUrl);
                 // Network/connection failure while downloading, may be worth retrying
                 t.sendResponseHeaders(500, 0);
                 t.getResponseBody().close();
                 return;
             }
             long tDownloaded = System.currentTimeMillis();
-            System.err.format("download: %dms\n", tDownloaded - tStart);
+            System.err.format("download: %dms (%s)\n", tDownloaded - tStart, replayUrl);
 
             // Determine compression type from the first few bytes
             byte[] header = compressIn.length >= 4 ? Arrays.copyOf(compressIn, 4) : compressIn;
@@ -150,6 +152,7 @@ public class Main {
                 parseOut = parseOutStream.toByteArray();
             } catch (DecompressionException e) {
                 e.printStackTrace();
+                System.err.println("Decompression failed for replay_url: " + replayUrl);
                 // Corrupted/truncated replay, don't retry
                 t.sendResponseHeaders(204, 0);
                 t.getResponseBody().close();
@@ -157,18 +160,20 @@ public class Main {
             } catch (Exception ex) {
                 if ("given stream does not seem to contain a valid replay".equals(ex.getMessage()) || "FAILED_TO_UNCOMPRESS(5)".equals(ex.getMessage()) || "java.lang.reflect.InvocationTargetException".equals(ex.getMessage())) {
                     ex.printStackTrace();
+                    System.err.println("Corrupted/truncated replay for replay_url: " + replayUrl);
                     // Corrupted/truncated replay, don't retry
                     t.sendResponseHeaders(204, 0);
                     t.getResponseBody().close();
                     return;
                 }
                 ex.printStackTrace();
+                System.err.println("Parse failed for replay_url: " + replayUrl);
                 t.sendResponseHeaders(500, 0);
                 t.getResponseBody().close();
                 return;
             }
             long tParsed = System.currentTimeMillis();
-            System.err.format("decompress+parse: %dms\n", tParsed - tDownloaded);
+            System.err.format("decompress+parse: %dms (%s)\n", tParsed - tDownloaded, replayUrl);
 
             t.sendResponseHeaders(200, parseOut.length);
             t.getResponseBody().write(parseOut);
