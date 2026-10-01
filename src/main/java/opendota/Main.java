@@ -158,7 +158,7 @@ public class Main {
                 t.getResponseBody().close();
                 return;
             } catch (Exception ex) {
-                if ("given stream does not seem to contain a valid replay".equals(ex.getMessage()) || "FAILED_TO_UNCOMPRESS(5)".equals(ex.getMessage()) || "java.lang.reflect.InvocationTargetException".equals(ex.getMessage())) {
+                if ("given stream does not seem to contain a valid replay".equals(ex.getMessage()) || "FAILED_TO_UNCOMPRESS(5)".equals(ex.getMessage()) || "java.lang.reflect.InvocationTargetException".equals(ex.getMessage()) || ex.getMessage().startsWith("invalid embedded packet size")) {
                     ex.printStackTrace();
                     System.err.println("Corrupted/truncated replay for replay_url: " + replayUrl);
                     // Corrupted/truncated replay, don't retry
