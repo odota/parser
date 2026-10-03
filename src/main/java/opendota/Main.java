@@ -18,7 +18,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream;
@@ -44,6 +46,9 @@ public class Main {
     // at once; an unbounded thread pool could spawn enough concurrent
     // requests to exhaust available memory under load.
     static final int MAX_THREADS = Math.max(1, (int) Math.min(Runtime.getRuntime().availableProcessors() * 5, 40));
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+        .followRedirects(HttpClient.Redirect.NORMAL)
+        .build();
 
     public static void main(String[] args) throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress(Integer.valueOf("5600")), 0);
@@ -105,15 +110,22 @@ public class Main {
             }
             // Stage 1: download the full replay into memory
             long tStart = System.currentTimeMillis();
+            System.err.println("Download started for replay_url: " + replayUrl);
             byte[] compressIn;
             try {
-                HttpClient client = HttpClient.newHttpClient();
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(replayUrl)
-                        .timeout(Duration.ofSeconds(180))
                         .build();
-                HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
-                compressIn = response.body();
+                // The request timeout only covers receiving headers, so bound
+                // the full exchange (including the body) via the future
+                CompletableFuture<HttpResponse<byte[]>> future =
+                        HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray());
+                try {
+                    compressIn = future.get(180, TimeUnit.SECONDS).body();
+                } catch (TimeoutException e) {
+                    future.cancel(true);
+                    throw e;
+                }
             } catch (Exception e) {
                 e.printStackTrace();
                 System.err.println("Download failed for replay_url: " + replayUrl);
