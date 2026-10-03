@@ -329,6 +329,62 @@ public class Parse {
         flushLogBuffer();
     }
 
+    // assists_log reads the assist and death counters on every tick, not once a
+    // second with the intervals: an assist is credited on the exact tick the death
+    // it belongs to is counted, which is what lets the two be paired
+    private Integer[] lastAssists = new Integer[numPlayers];
+    private Integer[] lastDeaths = new Integer[numPlayers];
+
+    private void trackAssistCounters(Context ctx, Entity pr) {
+        for (int i = 0; i < numPlayers; i++) {
+            try {
+                Integer assists = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iAssists", validIndices[i]);
+                Integer deaths = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iDeaths", validIndices[i]);
+                emitCounterIncrease("assist_tick", i, assists, lastAssists, ctx.getTick());
+                emitCounterIncrease("death_tick", i, deaths, lastDeaths, ctx.getTick());
+            } catch (Exception e) {
+                // a player index the resource doesn't carry
+            }
+        }
+    }
+
+    private void emitCounterIncrease(String type, int slot, Integer value, Integer[] last, int tick) {
+        if (value == null) {
+            return;
+        }
+        Integer prev = last[slot];
+        last[slot] = value;
+        if (prev != null && value > prev) {
+            Entry entry = new Entry(time);
+            entry.type = type;
+            entry.slot = slot;
+            entry.value = value - prev;
+            entry.tick = tick;
+            output(entry);
+        }
+    }
+
+    // the players the game lists on a hero death, as slots. Not the full assist
+    // credit (it can leave assisters out), but everyone on it other than the
+    // killer did get the assist, which settles two deaths on the same tick
+    private List<Integer> assistSlots(CombatLogEntry cle) {
+        try {
+            List<Integer> slots = new ArrayList<>();
+            for (Object id : cle.getAssistPlayers()) {
+                int playerId = ((Number) id).intValue();
+                for (int i = 0; i < numPlayers; i++) {
+                    if (validIndices[i] == playerId) {
+                        slots.add(i);
+                    }
+                }
+            }
+            return slots.isEmpty() ? null : slots;
+        } catch (Exception e) {
+            // older replays don't carry the list
+            return null;
+        }
+    }
+
     @OnCombatLogEntry
     public void onCombatLogEntry(Context ctx, CombatLogEntry cle) {
         try {
@@ -343,6 +399,10 @@ public class Parse {
             combatLogEntry.targetsourcename = cle.getTargetSourceName();
             combatLogEntry.inflictor = cle.getInflictorName();
             combatLogEntry.attackerhero = cle.isAttackerHero();
+            if (cle.getType() == DOTA_COMBATLOG_TYPES.DOTA_COMBATLOG_DEATH && cle.isTargetHero()) {
+                combatLogEntry.tick = ctx.getTick();
+                combatLogEntry.assist_slots = assistSlots(cle);
+            }
             combatLogEntry.targethero = cle.isTargetHero();
             combatLogEntry.attackerillusion = cle.isAttackerIllusion();
             combatLogEntry.targetillusion = cle.isTargetIllusion();
@@ -460,6 +520,9 @@ public class Parse {
         Entity pr = ctx.getProcessor(Entities.class).getByDtName("CDOTA_PlayerResource");
         Entity dData = ctx.getProcessor(Entities.class).getByDtName("CDOTA_DataDire");
         Entity rData = ctx.getProcessor(Entities.class).getByDtName("CDOTA_DataRadiant");
+        if (pr != null && init) {
+            trackAssistCounters(ctx, pr);
+        }
 
         // Create draftStage variable
         Integer draftStage = getEntityProperty(grp, "m_pGameRules.m_nGameState", null);

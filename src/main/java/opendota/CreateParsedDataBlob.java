@@ -555,14 +555,12 @@ public class CreateParsedDataBlob {
     private Map<Integer, Map<Integer, Integer>> deathGoldBySlot = new HashMap<>();
     private Integer wkSlot = null;
 
-    // assists_log: the PlayerResource assist counter is sampled once per second in
-    // the interval entries, and ticks up one second after the death it credits, so
-    // each increment is one assist dated to a death in a small window around it.
-    // The victim is the enemy hero that died there. The pairing is only certain
-    // when that tick credits as many assists as there were enemies to credit them
-    // for; when more enemies died in the same second than the counter moved, which
-    // of them this assist belongs to is not decidable from the counter alone.
-    private static final int[] ASSIST_DEATH_OFFSETS = { -1, 0, -2, 1, -3, 2 };
+    // assists_log: the parser reports the assist and death counters on the tick
+    // they move, and the game credits an assist on the same tick it counts the
+    // death, so every assist lands on a tick with the deaths it can belong to.
+    // One death there settles it. With two, the player can't have assisted the
+    // one they killed, and anyone the combat log lists on a death other than its
+    // killer did get the assist. What is still left open is marked ambiguous.
     private List<Entry> assistLog = new ArrayList<>();
     private int ambiguousAssists = 0;
 
@@ -611,84 +609,134 @@ public class CreateParsedDataBlob {
         // their length is unknown, so those deaths get no time_dead
     }
 
+    private static class CountedDeath {
+        Integer slot;
+        Integer time;
+        String victim;
+        Integer killerSlot;
+        List<Integer> listed;
+    }
+
     private void precomputeAssists(List<Entry> entries, Metadata meta) {
-        Map<Integer, List<int[]>> incrementsBySlot = new HashMap<>();
-        Map<Integer, List<String>> heroDeathsByTime = new HashMap<>();
-        Map<Integer, Integer> lastAssists = new HashMap<>();
+        Map<Integer, List<Entry>> heroDeathsByTick = new HashMap<>();
+        Map<Integer, List<Integer>> deathTicks = new HashMap<>();
+        List<Entry> assistTicks = new ArrayList<>();
         for (Entry e : entries) {
-            if (e.time == null) {
-                continue;
-            }
-            if ("interval".equals(e.type) && e.slot != null && e.assists != null) {
-                Integer prev = lastAssists.put(e.slot, e.assists);
-                if (prev != null && e.assists > prev) {
-                    incrementsBySlot.computeIfAbsent(e.slot, k -> new ArrayList<>())
-                            .add(new int[] { e.time, e.assists - prev });
-                }
-            } else if ("DOTA_COMBATLOG_DEATH".equals(e.type) && e.targethero != null && e.targethero
-                    && (e.targetillusion == null || !e.targetillusion) && e.targetname != null
-                    && meta.hero_to_slot.containsKey(e.targetname)) {
-                heroDeathsByTime.computeIfAbsent(e.time, k -> new ArrayList<>()).add(e.targetname);
+            if ("assist_tick".equals(e.type)) {
+                assistTicks.add(e);
+            } else if ("death_tick".equals(e.type)) {
+                deathTicks.computeIfAbsent(e.tick, k -> new ArrayList<>()).add(e.slot);
+            } else if ("DOTA_COMBATLOG_DEATH".equals(e.type) && e.tick != null
+                    && (e.targetillusion == null || !e.targetillusion)) {
+                heroDeathsByTick.computeIfAbsent(e.tick, k -> new ArrayList<>()).add(e);
             }
         }
-        for (Map.Entry<Integer, List<int[]>> bySlot : incrementsBySlot.entrySet()) {
-            Integer playerSlot = meta.slot_to_player_slot.get(bySlot.getKey());
-            if (playerSlot == null) {
+        Map<Integer, List<CountedDeath>> countedByTick = new HashMap<>();
+        for (Map.Entry<Integer, List<Integer>> tick : deathTicks.entrySet()) {
+            for (Integer slot : tick.getValue()) {
+                CountedDeath death = new CountedDeath();
+                death.slot = slot;
+                Entry logged = loggedDeath(heroDeathsByTick, tick.getKey(), slot, meta);
+                if (logged != null) {
+                    death.victim = logged.targetname;
+                    death.time = logged.time;
+                    death.killerSlot = meta.hero_to_slot.get(logged.sourcename);
+                    death.listed = logged.assist_slots;
+                } else {
+                    // no combat log entry to take the name from: any name the
+                    // match maps to that slot
+                    for (Map.Entry<String, Integer> hero : meta.hero_to_slot.entrySet()) {
+                        if (slot.equals(hero.getValue())) {
+                            death.victim = hero.getKey();
+                            break;
+                        }
+                    }
+                }
+                countedByTick.computeIfAbsent(tick.getKey(), k -> new ArrayList<>()).add(death);
+            }
+        }
+        for (Entry increment : assistTicks) {
+            List<CountedDeath> deaths = countedByTick.get(increment.tick);
+            Integer playerSlot = meta.slot_to_player_slot.get(increment.slot);
+            if (deaths == null || playerSlot == null) {
                 continue;
             }
-            boolean radiant = isRadiant(playerSlot);
-            for (int[] increment : bySlot.getValue()) {
-                List<String> victims = null;
-                int deathTime = increment[0];
-                for (int offset : ASSIST_DEATH_OFFSETS) {
-                    List<String> enemies = enemyDeaths(heroDeathsByTime.get(increment[0] + offset),
-                            radiant, meta);
-                    if (!enemies.isEmpty()) {
-                        victims = enemies;
-                        deathTime = increment[0] + offset;
-                        break;
+            int n = increment.value;
+            List<CountedDeath> enemies = new ArrayList<>();
+            for (CountedDeath death : deaths) {
+                Integer victimSlot = meta.slot_to_player_slot.get(death.slot);
+                if (victimSlot != null && isRadiant(victimSlot) != isRadiant(playerSlot)) {
+                    enemies.add(death);
+                }
+            }
+            // the game also credits some assists on a death on the player's own
+            // side, on the same tick; those count on the scoreboard too
+            List<CountedDeath> candidates = enemies.isEmpty() ? deaths : enemies;
+            if (candidates.size() > n) {
+                List<CountedDeath> notKilled = new ArrayList<>();
+                for (CountedDeath death : candidates) {
+                    if (!increment.slot.equals(death.killerSlot)) {
+                        notKilled.add(death);
                     }
                 }
-                if (victims == null) {
-                    // an assist the counter reports with no enemy death to pin it
-                    // on: left out rather than dated to a guess
-                    continue;
+                if (notKilled.size() >= n) {
+                    candidates = notKilled;
                 }
-                boolean tied = victims.size() > increment[1];
+            }
+            if (candidates.size() > n) {
+                List<CountedDeath> listed = new ArrayList<>();
+                for (CountedDeath death : candidates) {
+                    if (death.listed != null && death.listed.contains(increment.slot)) {
+                        listed.add(death);
+                    }
+                }
+                if (listed.size() >= n) {
+                    candidates = listed;
+                }
+            }
+            boolean tied = candidates.size() > n;
+            if (tied) {
+                ambiguousAssists += n;
+            }
+            for (int i = 0; i < n; i++) {
+                CountedDeath death = candidates.get(Math.min(i, candidates.size() - 1));
+                Entry assist = new Entry();
+                assist.time = death.time != null ? death.time : increment.time;
+                assist.slot = increment.slot;
+                assist.key = death.victim;
+                assist.type = "assists_log";
                 if (tied) {
-                    ambiguousAssists += increment[1];
+                    assist.ambiguous = true;
                 }
-                for (int i = 0; i < increment[1]; i++) {
-                    Entry assist = new Entry();
-                    assist.time = deathTime;
-                    assist.slot = bySlot.getKey();
-                    assist.key = victims.get(Math.min(i, victims.size() - 1));
-                    assist.type = "assists_log";
-                    if (tied) {
-                        // more enemies died in that second than the counter
-                        // credited: the entry is kept, but which of them it
-                        // belongs to is a guess, and says so
-                        assist.ambiguous = true;
-                    }
-                    assistLog.add(assist);
-                }
+                assistLog.add(assist);
             }
         }
     }
 
-    private List<String> enemyDeaths(List<String> victims, boolean radiant, Metadata meta) {
-        List<String> enemies = new ArrayList<>();
-        if (victims == null) {
-            return enemies;
-        }
-        for (String victim : victims) {
-            Integer slot = meta.hero_to_slot.get(victim);
-            Integer playerSlot = slot == null ? null : meta.slot_to_player_slot.get(slot);
-            if (playerSlot != null && isRadiant(playerSlot) != radiant) {
-                enemies.add(victim);
+    // the combat log entry for a counted death, one tick before the counter moves.
+    // A Meepo death is logged once per Meepo, with the clones dying to Meepo
+    // himself, so the entry with another attacker is the one that counts
+    private Entry loggedDeath(Map<Integer, List<Entry>> heroDeathsByTick, Integer tick, Integer slot,
+            Metadata meta) {
+        for (int offset : new int[] { 1, 0, 2 }) {
+            List<Entry> logged = heroDeathsByTick.get(tick - offset);
+            if (logged == null) {
+                continue;
+            }
+            Entry match = null;
+            for (Entry e : logged) {
+                if (slot.equals(meta.hero_to_slot.get(e.targetname))) {
+                    if (match == null || (e.targetname.equals(match.sourcename)
+                            && !e.targetname.equals(e.sourcename))) {
+                        match = e;
+                    }
+                }
+            }
+            if (match != null) {
+                return match;
             }
         }
-        return enemies;
+        return null;
     }
 
     private boolean consumeReincarnationDeath(Integer slot, Integer time) {
@@ -948,14 +996,14 @@ public class CreateParsedDataBlob {
             }
         }
 
-        // emitted after the loop because the assist counter is only readable as a
-        // difference between interval samples, which the pre-scan resolves in full
+        // emitted after the loop because each assist is paired with its death by
+        // the tick both counters moved, which the pre-scan resolves in full
         for (Entry assist : assistLog) {
             expand(assist, output, meta);
         }
         if (ambiguousAssists > 0) {
-            System.err.format("assists_log: %s of %s assists shared a second with"
-                    + " more enemy deaths than the counter credited\n",
+            System.err.format("assists_log: %s of %s assists shared a tick with"
+                    + " more deaths than could be told apart\n",
                     ambiguousAssists, assistLog.size());
         }
 
