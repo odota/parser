@@ -5,8 +5,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -1581,6 +1583,11 @@ public class CreateParsedDataBlob {
         return pauses;
     }
 
+    // Entry types the per-teamfight loop below reacts to; everything else is skipped up front.
+    private static final Set<String> TEAMFIGHT_ENTRY_TYPES = new HashSet<>(Arrays.asList(
+            "killed", "buyback_log", "damage", "healing", "gold_reasons", "xp_reasons",
+            "ability_uses", "item_uses"));
+
     private List<Teamfight> processTeamfights(List<Entry> entries, Metadata meta) {
         Teamfight currTeamfight = null;
         List<Teamfight> teamfights = new ArrayList<>();
@@ -1635,6 +1642,9 @@ public class CreateParsedDataBlob {
         }
 
         for (Entry e : entries) {
+            if (!TEAMFIGHT_ENTRY_TYPES.contains(e.type)) {
+                continue;
+            }
             for (Teamfight tf : teamfights) {
                 if (e.time >= tf.start && e.time <= tf.end) {
                     if ("killed".equals(e.type) && e.targethero != null && e.targethero &&
