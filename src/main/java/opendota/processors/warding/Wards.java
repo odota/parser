@@ -30,6 +30,9 @@ import skadistats.clarity.wire.dota.common.proto.DOTACombatLog;
 @Provides({ OnWardKilled.class, OnWardExpired.class, OnWardPlaced.class })
 public class Wards {
     
+    private static final String WARD_CLASSES =
+            "CDOTA_NPC_Observer_Ward|CDOTA_NPC_Observer_Ward_TrueSight";
+
     private static final Map<String, String> WARDS_TARGET_NAME_BY_DT_CLASS;   
     private static final Set<String> WARDS_DT_CLASSES;
     private static final Set<String> WARDS_TARGET_NAMES;
@@ -91,7 +94,7 @@ public class Wards {
         });
     }   
         
-    @OnEntityCreated
+    @OnEntityCreated(classPattern = WARD_CLASSES)
     public void onCreated(Context ctx, Entity e) {      
         if (!isWard(e)) return;
         
@@ -104,7 +107,7 @@ public class Wards {
         }
     }
         
-    @OnEntityUpdated
+    @OnEntityUpdated(classPattern = WARD_CLASSES)
     public void onUpdated(Context ctx, Entity e, FieldPath[] fieldPaths, int num) {
         FieldPath p;
         if ((p = getFieldPathForEntity(e)) != null) {
@@ -117,7 +120,7 @@ public class Wards {
         }
     }
         
-    @OnEntityDeleted
+    @OnEntityDeleted(classPattern = WARD_CLASSES)
     public void onDeleted(Context ctx, Entity e) {
         clearCachedState(e);
     }
