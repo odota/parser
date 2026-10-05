@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 
+import skadistats.clarity.event.Event;
 import skadistats.clarity.event.EventListener;
 import skadistats.clarity.event.Initializer;
 import skadistats.clarity.event.Provides;
@@ -30,9 +31,6 @@ import skadistats.clarity.wire.dota.common.proto.DOTACombatLog;
 @Provides({ OnWardKilled.class, OnWardExpired.class, OnWardPlaced.class })
 public class Wards {
     
-    private static final String WARD_CLASSES =
-            "CDOTA_NPC_Observer_Ward|CDOTA_NPC_Observer_Ward_TrueSight";
-
     private static final Map<String, String> WARDS_TARGET_NAME_BY_DT_CLASS;   
     private static final Set<String> WARDS_DT_CLASSES;
     private static final Set<String> WARDS_TARGET_NAMES;
@@ -75,17 +73,17 @@ public class Wards {
 
     @Initializer(OnWardKilled.class)
     public void initOnWardKilled(final Context ctx, final EventListener<OnWardKilled> listener) {
-        evKilled = ctx.createEvent(OnWardKilled.class);
+        evKilled = (OnWardKilled.Event) ctx.createEvent(OnWardKilled.class);
     }
 
     @Initializer(OnWardExpired.class)
     public void initOnWardExpired(final Context ctx, final EventListener<OnWardExpired> listener) {
-        evExpired = ctx.createEvent(OnWardExpired.class);
+        evExpired = (OnWardExpired.Event) ctx.createEvent(OnWardExpired.class);
     }
 
     @Initializer(OnWardPlaced.class)
     public void initOnWardPlaced(final Context ctx, final EventListener<OnWardPlaced> listener) {
-        evPlaced = ctx.createEvent(OnWardPlaced.class);
+        evPlaced = (OnWardPlaced.Event) ctx.createEvent(OnWardPlaced.class);
     }
 
     public Wards() {
@@ -94,7 +92,7 @@ public class Wards {
         });
     }   
         
-    @OnEntityCreated(classPattern = WARD_CLASSES)
+    @OnEntityCreated
     public void onCreated(Context ctx, Entity e) {      
         if (!isWard(e)) return;
         
@@ -107,7 +105,7 @@ public class Wards {
         }
     }
         
-    @OnEntityUpdated(classPattern = WARD_CLASSES)
+    @OnEntityUpdated
     public void onUpdated(Context ctx, Entity e, FieldPath[] fieldPaths, int num) {
         FieldPath p;
         if ((p = getFieldPathForEntity(e)) != null) {
@@ -120,7 +118,7 @@ public class Wards {
         }
     }
         
-    @OnEntityDeleted(classPattern = WARD_CLASSES)
+    @OnEntityDeleted
     public void onDeleted(Context ctx, Entity e) {
         clearCachedState(e);
     }
@@ -156,7 +154,7 @@ public class Wards {
     private void ensureFieldPathForEntityInitialized(Entity e) {
         Integer cid = e.getDtClass().getClassId();
         if (!lifeStatePaths.containsKey(cid)) {
-            lifeStatePaths.put(cid, e.getFieldPathForName("m_lifeState"));
+            lifeStatePaths.put(cid, e.getDtClass().getFieldPathForName("m_lifeState"));
         }
     }
     
