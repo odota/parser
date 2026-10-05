@@ -36,7 +36,7 @@
         <dependency>
             <groupId>com.skadistats</groupId>
             <artifactId>clarity</artifactId>
-            <version>5.0.0</version>
+            <version>5.0.1</version>
         </dependency>
 
         <dependency>
