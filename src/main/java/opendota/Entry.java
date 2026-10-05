@@ -81,6 +81,7 @@ public class Entry implements Cloneable {
     public Integer draft_extime0;
     public Integer draft_extime1;
     public Integer networth;
+    public Integer hero_damage;
     public Integer stage;
     public Boolean posData;
     public Boolean max;
