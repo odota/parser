@@ -55,6 +55,7 @@ class PlayerData {
     public List<Integer> xp_t = new ArrayList<>();
     public List<Integer> networth_t = new ArrayList<>();
     public List<Integer> camps_stacked_t = new ArrayList<>();
+    public List<Integer> tower_damage_t = new ArrayList<>();
     public List<Integer> hero_damage_t = new ArrayList<>();
     public List<Integer> hero_healing_t = new ArrayList<>();
     public List<Entry> obs_log = new ArrayList<>();
@@ -1474,6 +1475,10 @@ public class CreateParsedDataBlob {
                     // not present in old replays; leave the array empty rather than filling with nulls
                     addIntervalData(e, output, meta, "camps_stacked_t", e.camps_stacked);
                 }
+                if (e.tower_damage != null) {
+                    // not present in old replays; leave the array empty rather than filling with nulls
+                    addIntervalData(e, output, meta, "tower_damage_t", e.tower_damage);
+                }
                 int minuteIdx = e.time / 60;
                 int dmgCum = heroDamageCumBySlot.getOrDefault(e.slot, 0)
                         + heroDamageMinuteBySlot.getOrDefault(e.slot, Collections.emptyMap())
@@ -1756,7 +1761,7 @@ public class CreateParsedDataBlob {
     // Helper methods
     private boolean isArrayField(String type) {
         return Arrays.asList("times", "gold_t", "lh_t", "dn_t", "xp_t", "networth_t",
-                "camps_stacked_t", "hero_damage_t", "hero_healing_t", "obs_log",
+                "camps_stacked_t", "tower_damage_t", "hero_damage_t", "hero_healing_t", "obs_log",
                 "sen_log", "obs_left_log", "sen_left_log", "purchase_log", "kills_log",
                 "deaths_log", "buyback_log", "runes_log", "connection_log", "neutral_tokens_log",
                 "neutral_item_history").contains(type);
@@ -1799,6 +1804,8 @@ public class CreateParsedDataBlob {
                 return player.networth_t;
             case "camps_stacked_t":
                 return player.camps_stacked_t;
+            case "tower_damage_t":
+                return player.tower_damage_t;
             case "hero_damage_t":
                 return player.hero_damage_t;
             case "hero_healing_t":

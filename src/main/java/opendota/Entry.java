@@ -34,6 +34,7 @@ public class Entry implements Cloneable {
     // public Float slow_duration;
     // entity fields
     public Integer gold;
+    public Integer tower_damage;
     public Integer lh;
     public Integer xp;
     public Float x;
