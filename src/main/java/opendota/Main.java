@@ -1,11 +1,10 @@
 package opendota;
 
-import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
@@ -14,14 +13,12 @@ import java.net.URLDecoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -33,22 +30,10 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 public class Main {
-
     /**
-     * Marks an IOException as having originated from reading the raw
-     * download stream (network/connection failure), as opposed to a
-     * failure while decompressing already-downloaded bytes.
-     */
-    static class DownloadException extends IOException {
-        DownloadException(Throwable cause) {
-            super(cause);
-        }
-    }
-
-    /**
-     * Marks an IOException as having originated from the decompressing
-     * InputStream (corrupted/truncated compressed data), as opposed to
-     * an error thrown by Parse's own logic.
+     * Marks an IOException as having originated while decompressing the
+     * downloaded bytes (corrupted/truncated compressed data), as opposed
+     * to an error thrown by Parse's own logic.
      */
     static class DecompressionException extends IOException {
         DecompressionException(Throwable cause) {
@@ -56,12 +41,21 @@ public class Main {
         }
     }
 
+    // Caps concurrent /blob requests (and threads) since each one holds full
+    // in-memory copies of the replay (raw, decompressed, and parsed output)
+    // at once; an unbounded thread pool could spawn enough concurrent
+    // requests to exhaust available memory under load.
+    static final int MAX_THREADS = Math.max(1, (int) Math.min(Runtime.getRuntime().availableProcessors() * 5, 40));
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+        .followRedirects(HttpClient.Redirect.NORMAL)
+        .build();
+
     public static void main(String[] args) throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress(Integer.valueOf("5600")), 0);
         server.createContext("/", new MyHandler());
         server.createContext("/healthz", new HealthHandler());
         server.createContext("/blob", new BlobHandler());
-        server.setExecutor(java.util.concurrent.Executors.newCachedThreadPool());
+        server.setExecutor(java.util.concurrent.Executors.newFixedThreadPool(MAX_THREADS));
         server.start();
 
         // Re-register ourselves
@@ -102,76 +96,102 @@ public class Main {
     static class BlobHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange t) throws IOException {
+            URI replayUrl;
             try {
                 Map<String, String> query = splitQuery(t.getRequestURI());
-                URI replayUrl = URI.create(query.get("replay_url"));
-                byte[] parseOut = downloadDecompressAndParse(replayUrl);
-
-                t.sendResponseHeaders(200, parseOut.length);
-                t.getResponseBody().write(parseOut);
-                t.getResponseBody().close();
-            } catch (DecompressionException e) {
+                replayUrl = URI.create(query.get("replay_url"));
+            } catch (Exception e) {
+                System.err.println("Failed to parse replay_url from request: " + t.getRequestURI());
                 e.printStackTrace();
-                // Corrupted/truncated replay, don't retry
-                t.sendResponseHeaders(204, 0);
+                // Missing or malformed replay_url query parameter
+                t.sendResponseHeaders(500, 0);
                 t.getResponseBody().close();
-            } catch (DownloadException e) {
+                return;
+            }
+            // Stage 1: download the full replay into memory
+            long tStart = System.currentTimeMillis();
+            System.err.println("Download started for replay_url: " + replayUrl);
+            byte[] compressIn;
+            try {
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(replayUrl)
+                        .build();
+                // The request timeout only covers receiving headers, so bound
+                // the full exchange (including the body) via the future
+                CompletableFuture<HttpResponse<byte[]>> future =
+                        HTTP_CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray());
+                try {
+                    compressIn = future.get(180, TimeUnit.SECONDS).body();
+                } catch (TimeoutException e) {
+                    future.cancel(true);
+                    throw e;
+                }
+            } catch (Exception e) {
                 e.printStackTrace();
+                System.err.println("Download failed for replay_url: " + replayUrl);
                 // Network/connection failure while downloading, may be worth retrying
                 t.sendResponseHeaders(500, 0);
                 t.getResponseBody().close();
+                return;
+            }
+            long tDownloaded = System.currentTimeMillis();
+            System.err.format("download: %dms (%s)\n", tDownloaded - tStart, replayUrl);
+
+            // Determine compression type from the first few bytes
+            byte[] header = compressIn.length >= 4 ? Arrays.copyOf(compressIn, 4) : compressIn;
+
+            // Wrap the downloaded bytes in the appropriate decompressing stream.
+            // Compressed streams are guarded so a failure while decompressing
+            // is distinguishable from a failure in Parse's own logic. Decompression
+            // happens lazily as Parse reads, so there's no second full in-memory
+            // copy of the decompressed replay.
+            InputStream parseInput;
+            if (isZstd(header)) {
+                parseInput = guardDecompression(
+                        new ZstdCompressorInputStream(new ByteArrayInputStream(compressIn)));
+            } else if (isBzip2(header)) {
+                parseInput = guardDecompression(
+                        new BZip2CompressorInputStream(new ByteArrayInputStream(compressIn)));
+            } else {
+                parseInput = new ByteArrayInputStream(compressIn);
+            }
+
+            // Stage 2: decompress (on the fly) and parse
+            byte[] parseOut;
+            try (InputStream pi = parseInput) {
+                ByteArrayOutputStream parseOutStream = new ByteArrayOutputStream();
+                new Parse(pi, parseOutStream, true);
+                parseOut = parseOutStream.toByteArray();
+            } catch (DecompressionException e) {
+                e.printStackTrace();
+                System.err.println("Decompression failed for replay_url: " + replayUrl);
+                // Corrupted/truncated replay, don't retry
+                t.sendResponseHeaders(204, 0);
+                t.getResponseBody().close();
+                return;
             } catch (Exception ex) {
-                if (ex.getMessage().equals("given stream does not seem to contain a valid replay")) {
+                if ("given stream does not seem to contain a valid replay".equals(ex.getMessage()) || "FAILED_TO_UNCOMPRESS(5)".equals(ex.getMessage()) || "java.lang.reflect.InvocationTargetException".equals(ex.getMessage()) || ex.getMessage().startsWith("invalid embedded packet size")) {
+                    ex.printStackTrace();
+                    System.err.println("Corrupted/truncated replay for replay_url: " + replayUrl);
                     // Corrupted/truncated replay, don't retry
                     t.sendResponseHeaders(204, 0);
                     t.getResponseBody().close();
                     return;
                 }
                 ex.printStackTrace();
+                System.err.println("Parse failed for replay_url: " + replayUrl);
                 t.sendResponseHeaders(500, 0);
                 t.getResponseBody().close();
+                return;
             }
+            long tParsed = System.currentTimeMillis();
+            System.err.format("decompress+parse: %dms (%s)\n", tParsed - tDownloaded, replayUrl);
+
+            t.sendResponseHeaders(200, parseOut.length);
+            t.getResponseBody().write(parseOut);
+            t.getResponseBody().close();
         }
 
-        private static byte[] downloadDecompressAndParse(URI replayUrl) throws IOException, InterruptedException {
-            long tStart = System.currentTimeMillis();
-            HttpClient client = HttpClient.newHttpClient();
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(replayUrl)
-                    .build();
-            HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
-            InputStream downloadStream = guardDownload(response.body());
-
-            // Peek at the first few bytes to determine compression type, then
-            // push them back so the full stream is available for decompression
-            java.io.PushbackInputStream pushback = new java.io.PushbackInputStream(downloadStream, 4);
-            byte[] header = pushback.readNBytes(4);
-            if (header.length > 0) {
-                pushback.unread(header);
-            }
-
-            // Wrap the download stream in the appropriate decompressing stream.
-            // Compressed streams are guarded so a failure while decompressing
-            // is distinguishable from a failure while downloading.
-            InputStream parseInput;
-            if (isZstd(header)) {
-                parseInput = guardDecompression(new ZstdCompressorInputStream(pushback));
-            } else if (isBzip2(header)) {
-                parseInput = guardDecompression(new BZip2CompressorInputStream(pushback));
-            } else {
-                parseInput = pushback;
-            }
-
-            // Parse, downloading and decompressing on the fly as Parse reads
-            ByteArrayOutputStream parseOutStream = new ByteArrayOutputStream();
-            try (InputStream pi = parseInput) {
-                new Parse(pi, parseOutStream, true);
-            }
-            byte[] parseOut = parseOutStream.toByteArray();
-            long tEnd = System.currentTimeMillis();
-            System.err.format("download+decompress+parse: %dms\n", tEnd - tStart);
-            return parseOut;
-        }
         // Zstd magic number bytes, in file order (little-endian representation of 0xFD2FB528)
         private static final byte[] ZSTD_MAGIC = {
             (byte) 0x28, (byte) 0xB5, (byte) 0x2F, (byte) 0xFD
@@ -202,41 +222,10 @@ public class Main {
         }
 
         /**
-         * Wraps the raw download InputStream so that any IOException thrown
-         * while reading from it (e.g. a network/connection failure) is
-         * rethrown as a DownloadException, distinguishing it from a failure
-         * that occurs while decompressing already-downloaded bytes.
-         */
-        private static InputStream guardDownload(InputStream downloadStream) {
-            return new FilterInputStream(downloadStream) {
-                @Override
-                public int read() throws IOException {
-                    try {
-                        return super.read();
-                    } catch (IOException e) {
-                        throw new DownloadException(e);
-                    }
-                }
-
-                @Override
-                public int read(byte[] b, int off, int len) throws IOException {
-                    try {
-                        return super.read(b, off, len);
-                    } catch (IOException e) {
-                        throw new DownloadException(e);
-                    }
-                }
-            };
-        }
-
-        /**
          * Wraps a decompressing InputStream so that any IOException thrown
          * while reading from it (e.g. corrupted or truncated compressed data)
          * is rethrown as a DecompressionException, distinguishing it from
          * errors thrown by Parse's own logic once decompression succeeds.
-         * A DownloadException from the underlying stream is passed through
-         * unchanged, since that failure happened at the network layer, not
-         * during decompression.
          */
         private static InputStream guardDecompression(InputStream compressorStream) {
             return new FilterInputStream(compressorStream) {
@@ -244,8 +233,6 @@ public class Main {
                 public int read() throws IOException {
                     try {
                         return super.read();
-                    } catch (DownloadException e) {
-                        throw e;
                     } catch (IOException e) {
                         throw new DecompressionException(e);
                     }
@@ -255,8 +242,6 @@ public class Main {
                 public int read(byte[] b, int off, int len) throws IOException {
                     try {
                         return super.read(b, off, len);
-                    } catch (DownloadException e) {
-                        throw e;
                     } catch (IOException e) {
                         throw new DecompressionException(e);
                     }
@@ -279,38 +264,49 @@ public class Main {
 }
 
 class RegisterTask extends TimerTask {
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .build();
+
     public void run() {
         if (System.getenv().containsKey("SERVICE_REGISTRY_HOST")) {
             try {
-                String ip = "";
+                String registryHost = System.getenv().get("SERVICE_REGISTRY_HOST");
+                String ip;
                 if (System.getenv().containsKey("EXTERNAL")) {
                     // If configured as external, request external IP and report it
-                    ip = RegisterTask.shellExec("curl " + System.getenv().get("SERVICE_REGISTRY_HOST") + "/ip");
+                    ip = httpGet(registryHost + "/ip").trim();
                 } else {
-                    // Otherwise, use hostname -i to get internal IP
-                    ip = RegisterTask.shellExec("hostname -i");
+                    // Otherwise, use the local host's address as the internal IP
+                    ip = java.net.InetAddress.getLocalHost().getHostAddress();
                 }
-                long nproc = Math.round(Math.min(Runtime.getRuntime().availableProcessors(), 12));
-                String postCmd = "curl -X POST --max-time 60 -L " + System.getenv().get("SERVICE_REGISTRY_HOST")
-                        + "/register/parser/" + ip + ":5600" + "?size=" + nproc + "&key="
-                        + System.getenv().get("RETRIEVER_SECRET");
-                System.err.println(postCmd);
-                RegisterTask.shellExec(postCmd);
+                long nproc = Main.MAX_THREADS;
+                String registerUrl = "http://" + registryHost + "/register/parser/" + ip + ":5600"
+                        + "?size=" + nproc + "&key=" + System.getenv().get("RETRIEVER_SECRET");
+                System.err.println("POST " + registerUrl);
+                httpPost(registerUrl);
             } catch (Exception e) {
                 System.err.println(e);
             }
         }
     }
 
-    public static String shellExec(String cmdCommand) throws IOException {
-        final StringBuilder stringBuilder = new StringBuilder();
-        String[] cmdArr = cmdCommand.split(" ");
-        final Process process = Runtime.getRuntime().exec(cmdArr, null, null);
-        final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-        String line;
-        while ((line = bufferedReader.readLine()) != null) {
-            stringBuilder.append(line);
-        }
-        return stringBuilder.toString();
+    private static String httpGet(String url) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(java.time.Duration.ofSeconds(60))
+                .GET()
+                .build();
+        HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+        return response.body();
+    }
+
+    private static void httpPost(String url) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(java.time.Duration.ofSeconds(60))
+                .POST(HttpRequest.BodyPublishers.noBody())
+                .build();
+        HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.discarding());
     }
 }

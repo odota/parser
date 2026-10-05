@@ -1,13 +1,18 @@
 package opendota;
 
 import com.google.gson.Gson;
-import com.google.protobuf.GeneratedMessage;
+import skadistats.clarity.protobuf.GeneratedMessage;
 import skadistats.clarity.io.Util;
 import skadistats.clarity.model.DTClass;
 import skadistats.clarity.model.Entity;
 import skadistats.clarity.model.FieldPath;
 import skadistats.clarity.model.StringTable;
+import skadistats.clarity.model.s2.Field;
+import skadistats.clarity.model.s2.S2DTClass;
+import skadistats.clarity.model.s2.field.PolymorphicPointerField;
 import skadistats.clarity.processor.entities.Entities;
+import skadistats.clarity.processor.entities.OnEntityCreated;
+import skadistats.clarity.processor.entities.OnEntityDeleted;
 import skadistats.clarity.processor.entities.OnEntityEntered;
 import skadistats.clarity.processor.entities.UsesEntities;
 import skadistats.clarity.processor.gameevents.OnCombatLogEntry;
@@ -32,6 +37,7 @@ import skadistats.clarity.wire.shared.s1.proto.S1UserMessages.CUserMsg_SayText2;
 import skadistats.clarity.wire.shared.s2.proto.S2UserMessages.CUserMessageSayText2;
 
 import java.util.*;
+import java.util.function.Predicate;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -44,6 +50,29 @@ import opendota.processors.warding.OnWardKilled;
 import opendota.processors.warding.OnWardPlaced;
 
 public class Parse {
+
+    private static final String SINGLETON_CLASSES =
+            "CDOTAGamerulesProxy|CDOTA_PlayerResource|CDOTA_DataDire|CDOTA_DataRadiant";
+
+    private static final Predicate<DTClass> ENTITY_FILTER = dt -> {
+        String n = dt.getDtName();
+        return switch (n) {
+            case "CDOTAGamerulesProxy",
+                 "CDOTA_PlayerResource",
+                 "CDOTA_DataDire",
+                 "CDOTA_DataRadiant",
+                 "CDOTAWearableItem",
+                 "CDOTA_Item",
+                 "CDOTAPlayer",
+                 "CDOTAPlayerController",
+                 "CDOTABaseAbility",
+                 "CDOTA_NPC_Observer_Ward",
+                 "CDOTA_NPC_Observer_Ward_TrueSight" -> true;
+            default -> n.startsWith("CDOTA_Unit_Hero_")
+                    || n.startsWith("CDOTA_Item_")
+                    || n.startsWith("CDOTA_Ability_");
+        };
+    };
 
     private Float getPreciseLocation (Integer cell, Float vec) {
       return (cell*128.0f+vec)/128;
@@ -78,7 +107,9 @@ public class Parse {
     boolean epilogue = false;
     private Gson g = new Gson();
     HashMap<String, Integer> name_to_slot = new HashMap<String, Integer>();
-    HashMap<String, Integer> abilities_tracking = new HashMap<String, Integer>();
+    HashMap<String, HashMap<String, Integer>> abilities_tracking = new HashMap<>();
+    boolean abilitiesTrackingEmpty = true;
+    HashMap<String, String[]> combatLogNamesByUnit = new HashMap<>();
     List<Ability> abilities;
     HashMap<Integer, Integer> slot_to_playerslot = new HashMap<Integer, Integer>();
     HashMap<Long, Integer> steamid_to_playerslot = new HashMap<Long, Integer>();
@@ -118,7 +149,11 @@ public class Parse {
         doBlob = blob;
         isPlayerStartingItemsWritten = new ArrayList<>(Arrays.asList(new Boolean[numPlayers]));
         Collections.fill(isPlayerStartingItemsWritten, Boolean.FALSE);
-        new SimpleRunner(new InputStreamSource(is)).runWith(this);
+        SimpleRunner runner = new SimpleRunner(new InputStreamSource(is));
+        if (!"false".equals(System.getProperty("opendota.entityFilter"))) {
+            runner.withEntityFilter(ENTITY_FILTER);
+        }
+        runner.runWith(this);
         if (doBlob) {
             if (!epilogue) {
                 throw new RuntimeException("no epilogue");
@@ -516,10 +551,10 @@ public class Parse {
         // ctx.getEngineType()
 
         // s1 DT_DOTAGameRulesProxy
-        Entity grp = ctx.getProcessor(Entities.class).getByDtName("CDOTAGamerulesProxy");
-        Entity pr = ctx.getProcessor(Entities.class).getByDtName("CDOTA_PlayerResource");
-        Entity dData = ctx.getProcessor(Entities.class).getByDtName("CDOTA_DataDire");
-        Entity rData = ctx.getProcessor(Entities.class).getByDtName("CDOTA_DataRadiant");
+        Entity grp = gameRulesProxy;
+        Entity pr = playerResource;
+        Entity dData = dataDire;
+        Entity rData = dataRadiant;
         if (pr != null && init) {
             trackAssistCounters(ctx, pr);
         }
@@ -565,7 +600,7 @@ public class Parse {
             // the same time as the game start, so it's not any better for streaming)
             // Some replays don't have the combat log event for some reason so also do this
             // here
-            int currGameStartTime = Math.round((float) grp.getProperty("m_pGameRules.m_flGameStartTime"));
+            int currGameStartTime = Math.round((float) requireProperty(grp, "m_pGameRules.m_flGameStartTime"));
             if (gameStartTime == 0 && currGameStartTime != 0) {
                 gameStartTime = currGameStartTime;
                 flushLogBuffer();
@@ -791,33 +826,29 @@ public class Parse {
                         // check if hero has been assigned to entity
                         if (hero > 0) {
                             // get the hero's entity name, ex: CDOTA_Hero_Zuus
-                            String unit = e.getDtClass().getDtName();
-                            // grab the end of the name, lowercase it
-                            String ending = unit.substring("CDOTA_Unit_Hero_".length());
-                            // valve is bad at consistency and the combat log name could involve replacing
-                            // camelCase with _ or not!
-                            // double map it so we can look up both cases
-                            String combatLogName = "npc_dota_hero_" + ending.toLowerCase();
-                            // don't include final underscore here since the first letter is always
-                            // capitalized and will be converted to underscore
-                            String combatLogName2 = "npc_dota_hero" + ending.replaceAll("([A-Z])", "_$1").toLowerCase();
+                            String[] combatLogNames = combatLogNamesForUnit(e.getDtClass().getDtName());
+                            String combatLogName = combatLogNames[0];
+                            String combatLogName2 = combatLogNames[1];
                             // System.err.format("%s, %s, %s\n", unit, combatLogName, combatLogName2);
                             // populate for combat log mapping
                             name_to_slot.put(combatLogName, entry.slot);
                             name_to_slot.put(combatLogName2, entry.slot);
 
                             abilities = getHeroAbilities(ctx, e);
+                            HashMap<String, Integer> heroAbilityLevels =
+                                    abilities_tracking.computeIfAbsent(combatLogName, k -> new HashMap<>());
                             for (Ability ability : abilities) {
                                 // Only push ability updates when the level changes
-                                if (abilities_tracking.get(combatLogName + ability.id) != ability.abilityLevel
-                                        || abilities_tracking.isEmpty()) {
+                                if (heroAbilityLevels.get(ability.id) != ability.abilityLevel
+                                        || abilitiesTrackingEmpty) {
                                     Entry abilitiesEntry = new Entry(time);
                                     abilitiesEntry.type = "DOTA_ABILITY_LEVEL";
                                     abilitiesEntry.targetname = combatLogName;
                                     abilitiesEntry.valuename = ability.id;
                                     abilitiesEntry.abilitylevel = ability.abilityLevel;
                                     // We use the combatLogName & the ability id as some ability IDs are the same
-                                    abilities_tracking.put(combatLogName + ability.id, ability.abilityLevel);
+                                    heroAbilityLevels.put(ability.id, ability.abilityLevel);
+                                    abilitiesTrackingEmpty = false;
                                     output(abilitiesEntry);
                                 }
                             }
@@ -920,7 +951,7 @@ public class Parse {
         StringTable stEntityNames = ctx.getProcessor(StringTables.class).forName("EntityNames");
         Entities entities = ctx.getProcessor(Entities.class);
 
-        Integer hItem = eHero.getProperty("m_hItems." + Util.arrayIdxToString(idx));
+        Integer hItem = requireProperty(eHero, indexedName("m_hItems.%i", idx));
         if (hItem == 0xFFFFFF) {
             return null;
         }
@@ -940,11 +971,11 @@ public class Parse {
         Item item = new Item();
         item.id = itemName;
         item.slot = idx;
-        int numCharges = eItem.getProperty("m_iCurrentCharges");
+        int numCharges = requireProperty(eItem, "m_iCurrentCharges");
         if (numCharges != 0) {
             item.num_charges = numCharges;
         }
-        int numSecondaryCharges = eItem.getProperty("m_iSecondaryCharges");
+        int numSecondaryCharges = requireProperty(eItem, "m_iSecondaryCharges");
         if (numSecondaryCharges != 0) {
             item.num_secondary_charges = numSecondaryCharges;
         }
@@ -965,10 +996,12 @@ public class Parse {
         Entities entities = ctx.getProcessor(Entities.class);
 
         Integer hAbility;
-        if (eHero.hasProperty("m_hAbilities." + Util.arrayIdxToString(idx))) {
-            hAbility = eHero.getProperty("m_hAbilities." + Util.arrayIdxToString(idx));
-        } else if (eHero.hasProperty("m_vecAbilities." + Util.arrayIdxToString(idx))) {
-            hAbility = eHero.getProperty("m_vecAbilities." + Util.arrayIdxToString(idx));
+        FieldPath abilityFp = fieldPath(eHero, indexedName("m_hAbilities.%i", idx));
+        if (abilityFp == null) {
+            abilityFp = fieldPath(eHero, indexedName("m_vecAbilities.%i", idx));
+        }
+        if (abilityFp != null) {
+            hAbility = eHero.getPropertyForFieldPath(abilityFp);
         } else {
             hAbility = 0xFFFFFF;
         }
@@ -992,7 +1025,7 @@ public class Parse {
 
         Ability ability = new Ability();
         ability.id = abilityName;
-        ability.abilityLevel = eAbility.getProperty("m_iLevel");
+        ability.abilityLevel = requireProperty(eAbility, "m_iLevel");
 
         return ability;
     }
@@ -1005,8 +1038,82 @@ public class Parse {
         return idx;
     }
 
-    private final Object fpAbsent = new Object();
-    private final IdentityHashMap<DTClass, HashMap<String, Object>> fpCache = new IdentityHashMap<>();
+    // Resolved field paths per DT class id. A miss is remembered only if it can't turn
+    // into a hit later: S2 resolution depends on the entity state solely where the name
+    // runs through a polymorphic pointer, whose serializer can change.
+    private static final class ClassFieldPaths {
+        final HashMap<String, FieldPath> hits = new HashMap<>();
+        final HashSet<String> misses = new HashSet<>();
+    }
+
+    private ClassFieldPaths[] fieldPathsByClassId = new ClassFieldPaths[1024];
+    private final HashMap<String, String[]> indexedNames = new HashMap<>();
+
+    private FieldPath fieldPath(Entity e, String property) {
+        int classId = e.getDtClass().getClassId();
+        if (classId >= fieldPathsByClassId.length) {
+            fieldPathsByClassId = Arrays.copyOf(fieldPathsByClassId, Math.max(classId + 1, fieldPathsByClassId.length * 2));
+        }
+        ClassFieldPaths cache = fieldPathsByClassId[classId];
+        if (cache == null) {
+            cache = new ClassFieldPaths();
+            fieldPathsByClassId[classId] = cache;
+        }
+        FieldPath fp = cache.hits.get(property);
+        if (fp != null || cache.misses.contains(property)) {
+            return fp;
+        }
+        fp = e.getFieldPathForName(property);
+        if (fp != null) {
+            cache.hits.put(property, fp);
+        } else if (isPermanentMiss(e.getDtClass(), property)) {
+            cache.misses.add(property);
+        }
+        return fp;
+    }
+
+    private static boolean isPermanentMiss(DTClass dtClass, String property) {
+        Field field = ((S2DTClass) dtClass).getField();
+        for (String segment : property.split("\\.")) {
+            if (field instanceof PolymorphicPointerField) {
+                return false;
+            }
+            Integer idx = field.getChildIndex(null, segment);
+            if (idx == null) {
+                return true;
+            }
+            field = field.getChild(null, idx);
+            if (field == null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String indexedName(String template, int idx) {
+        if (idx < 0 || idx >= 64) {
+            return template.replace("%i", Util.arrayIdxToString(idx));
+        }
+        String[] names = indexedNames.get(template);
+        if (names == null) {
+            names = new String[64];
+            indexedNames.put(template, names);
+        }
+        String name = names[idx];
+        if (name == null) {
+            name = template.replace("%i", Util.arrayIdxToString(idx));
+            names[idx] = name;
+        }
+        return name;
+    }
+
+    private <T> T requireProperty(Entity e, String property) {
+        FieldPath fp = fieldPath(e, property);
+        if (fp == null) {
+            throw new IllegalArgumentException(String.format("property %s not found on entity of class %s", property, e.getDtClass().getDtName()));
+        }
+        return e.getPropertyForFieldPath(fp);
+    }
 
     public <T> T getEntityProperty(Entity e, String property, Integer idx) {
         try {
@@ -1014,27 +1121,58 @@ public class Parse {
                 return null;
             }
             if (idx != null) {
-                property = property.replace("%i", Util.arrayIdxToString(idx));
+                property = indexedName(property, idx);
             }
-            DTClass dt = e.getDtClass();
-            HashMap<String, Object> perClass = fpCache.get(dt);
-            if (perClass == null) {
-                perClass = new HashMap<>();
-                fpCache.put(dt, perClass);
-            }
-            Object cached = perClass.get(property);
-            if (cached == null) {
-                FieldPath resolved = dt.getFieldPathForName(property);
-                cached = resolved == null ? fpAbsent : resolved;
-                perClass.put(property, cached);
-            }
-            if (cached == fpAbsent) {
+            FieldPath fp = fieldPath(e, property);
+            if (fp == null) {
                 return null;
             }
-            return e.getPropertyForFieldPath((FieldPath) cached);
+            return e.getPropertyForFieldPath(fp);
         } catch (Exception ex) {
             return null;
         }
+    }
+
+    private String[] combatLogNamesForUnit(String unit) {
+        String[] names = combatLogNamesByUnit.get(unit);
+        if (names == null) {
+            // grab the end of the name, lowercase it
+            String ending = unit.substring("CDOTA_Unit_Hero_".length());
+            // valve is bad at consistency and the combat log name could involve replacing
+            // camelCase with _ or not!
+            // double map it so we can look up both cases
+            // don't include final underscore in the second name since the first letter is always
+            // capitalized and will be converted to underscore
+            names = new String[] {
+                    "npc_dota_hero_" + ending.toLowerCase(),
+                    "npc_dota_hero" + ending.replaceAll("([A-Z])", "_$1").toLowerCase()
+            };
+            combatLogNamesByUnit.put(unit, names);
+        }
+        return names;
+    }
+
+    private Entity gameRulesProxy;
+    private Entity playerResource;
+    private Entity dataDire;
+    private Entity dataRadiant;
+
+    @OnEntityCreated(classPattern = SINGLETON_CLASSES)
+    public void onSingletonCreated(Context ctx, Entity e) {
+        switch (e.getDtClass().getDtName()) {
+            case "CDOTAGamerulesProxy" -> gameRulesProxy = e;
+            case "CDOTA_PlayerResource" -> playerResource = e;
+            case "CDOTA_DataDire" -> dataDire = e;
+            case "CDOTA_DataRadiant" -> dataRadiant = e;
+        }
+    }
+
+    @OnEntityDeleted(classPattern = SINGLETON_CLASSES)
+    public void onSingletonDeleted(Context ctx, Entity e) {
+        if (gameRulesProxy == e) gameRulesProxy = null;
+        if (playerResource == e) playerResource = null;
+        if (dataDire == e) dataDire = null;
+        if (dataRadiant == e) dataRadiant = null;
     }
 
     @OnWardKilled
@@ -1084,4 +1222,5 @@ public class Parse {
 
         return entry;
     }
+
 }
