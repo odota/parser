@@ -370,11 +370,23 @@ public class Parse {
     private Integer[] lastAssists = new Integer[numPlayers];
     private Integer[] lastDeaths = new Integer[numPlayers];
 
+    // read on every tick, so the field paths are resolved once per player
+    private FieldPath[] assistsPaths;
+    private FieldPath[] deathsPaths;
+
     private void trackAssistCounters(Context ctx, Entity pr) {
+        if (assistsPaths == null) {
+            assistsPaths = new FieldPath[numPlayers];
+            deathsPaths = new FieldPath[numPlayers];
+            for (int i = 0; i < numPlayers; i++) {
+                assistsPaths[i] = fieldPath(pr, indexedName("m_vecPlayerTeamData.%i.m_iAssists", validIndices[i]));
+                deathsPaths[i] = fieldPath(pr, indexedName("m_vecPlayerTeamData.%i.m_iDeaths", validIndices[i]));
+            }
+        }
         for (int i = 0; i < numPlayers; i++) {
             try {
-                Integer assists = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iAssists", validIndices[i]);
-                Integer deaths = getEntityProperty(pr, "m_vecPlayerTeamData.%i.m_iDeaths", validIndices[i]);
+                Integer assists = assistsPaths[i] == null ? null : pr.getPropertyForFieldPath(assistsPaths[i]);
+                Integer deaths = deathsPaths[i] == null ? null : pr.getPropertyForFieldPath(deathsPaths[i]);
                 emitCounterIncrease("assist_tick", i, assists, lastAssists, ctx.getTick());
                 emitCounterIncrease("death_tick", i, deaths, lastDeaths, ctx.getTick());
             } catch (Exception e) {
