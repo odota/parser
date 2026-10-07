@@ -45,7 +45,7 @@ public class Main {
     // in-memory copies of the replay (raw, decompressed, and parsed output)
     // at once; an unbounded thread pool could spawn enough concurrent
     // requests to exhaust available memory under load.
-    static final int MAX_THREADS = Math.max(1, (int) Math.min(Runtime.getRuntime().availableProcessors() * 5, 40));
+    static final int MAX_THREADS = Math.max(1, (int) Math.min(Runtime.getRuntime().availableProcessors() * 6, 40));
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
         .followRedirects(HttpClient.Redirect.NORMAL)
         .build();
