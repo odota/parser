@@ -1484,7 +1484,10 @@ public class CreateParsedDataBlob {
                         + heroDamageMinuteBySlot.getOrDefault(e.slot, Collections.emptyMap())
                                 .getOrDefault(minuteIdx, 0);
                 heroDamageCumBySlot.put(e.slot, dmgCum);
-                addIntervalData(e, output, meta, "hero_damage_t", dmgCum);
+                // the game keeps its own hero damage counter, which is the scoreboard's
+                // number; the combat log sum is only the fallback for replays without it,
+                // since it also counts damage to allies and to some non-hero units
+                addIntervalData(e, output, meta, "hero_damage_t", e.hero_damage != null ? e.hero_damage : dmgCum);
                 int healCum = heroHealingCumBySlot.getOrDefault(e.slot, 0)
                         + heroHealingMinuteBySlot.getOrDefault(e.slot, Collections.emptyMap())
                                 .getOrDefault(minuteIdx, 0);
