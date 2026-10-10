@@ -720,6 +720,9 @@ public class Parse {
                         entry.lh = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iLastHitCount", teamSlot);
                         entry.xp = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iTotalEarnedXP", teamSlot);
                         entry.stuns = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_fStuns", teamSlot);
+                        // the game's own counter, the same number as the scoreboard's tower_damage
+                        Float towerDamage = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_flTowerDamage", teamSlot);
+                        entry.tower_damage = towerDamage == null ? null : Math.round(towerDamage);
                     }
 
                     // TODO: gem, rapier time?
