@@ -65,6 +65,7 @@ class PlayerData {
     public List<Map<String, Object>> purchase_log = new ArrayList<>();
     public List<Map<String, Object>> kills_log = new ArrayList<>();
     public List<Map<String, Object>> deaths_log = new ArrayList<>();
+    public List<Map<String, Object>> assists_log = new ArrayList<>();
     public List<Entry> buyback_log = new ArrayList<>();
     public List<Map<String, Object>> runes_log = new ArrayList<>();
     public List<Entry> connection_log = new ArrayList<>();
@@ -362,7 +363,8 @@ public class CreateParsedDataBlob {
         } else if (e.interval != null && e.interval) {
             List<Integer> targetList = getPlayerIntegerList(player, e.type);
             targetList.add(e.value);
-        } else if (Arrays.asList("purchase_log", "kills_log", "deaths_log", "runes_log", "neutral_tokens_log").contains(e.type)) {
+        } else if (Arrays.asList("purchase_log", "kills_log", "deaths_log", "assists_log", "runes_log",
+                "neutral_tokens_log").contains(e.type)) {
             Map<String, Object> obj = new HashMap<>();
             obj.put("time", e.time);
             obj.put("key", e.key);
@@ -383,6 +385,10 @@ public class CreateParsedDataBlob {
                 obj.put("smoke", e.smoke);
             }
 
+            if ("assists_log".equals(e.type) && e.ambiguous != null) {
+                obj.put("ambiguous", e.ambiguous);
+            }
+
             if ("deaths_log".equals(e.type)) {
                 obj.put("gold_lost", e.gold_lost);
                 obj.put("gold_fed", e.gold_fed);
@@ -400,6 +406,8 @@ public class CreateParsedDataBlob {
                 player.kills_log.add(obj);
             } else if ("deaths_log".equals(e.type)) {
                 player.deaths_log.add(obj);
+            } else if ("assists_log".equals(e.type)) {
+                player.assists_log.add(obj);
             } else if ("runes_log".equals(e.type)) {
                 player.runes_log.add(obj);
             } else if ("neutral_tokens_log".equals(e.type)) {
@@ -566,6 +574,15 @@ public class CreateParsedDataBlob {
     private boolean sharedGoldFed = false;
     private Integer wkSlot = null;
 
+    // assists_log: the parser reports the assist and death counters on the tick
+    // they move, and the game credits an assist on the same tick it counts the
+    // death, so every assist lands on a tick with the deaths it can belong to.
+    // One death there settles it. With two, the player can't have assisted the
+    // one they killed, and anyone the combat log lists on a death other than its
+    // killer did get the assist. What is still left open is marked ambiguous.
+    private List<Entry> assistLog = new ArrayList<>();
+    private int ambiguousAssists = 0;
+
     private void precomputeReincarnations(List<Entry> entries, Metadata meta) {
         wkSlot = meta.hero_to_slot.get(WK_HERO);
         Map<Integer, Integer> lastState = new HashMap<>();
@@ -613,6 +630,136 @@ public class CreateParsedDataBlob {
         }
         // deaths still open when the replay ends stay out of deadWindowsBySlot:
         // their length is unknown, so those deaths get no time_dead
+    }
+
+    private static class CountedDeath {
+        Integer slot;
+        Integer time;
+        String victim;
+        Integer killerSlot;
+        List<Integer> listed;
+    }
+
+    private void precomputeAssists(List<Entry> entries, Metadata meta) {
+        Map<Integer, List<Entry>> heroDeathsByTick = new HashMap<>();
+        Map<Integer, List<Integer>> deathTicks = new HashMap<>();
+        List<Entry> assistTicks = new ArrayList<>();
+        for (Entry e : entries) {
+            if ("assist_tick".equals(e.type)) {
+                assistTicks.add(e);
+            } else if ("death_tick".equals(e.type)) {
+                deathTicks.computeIfAbsent(e.tick, k -> new ArrayList<>()).add(e.slot);
+            } else if ("DOTA_COMBATLOG_DEATH".equals(e.type) && e.tick != null
+                    && (e.targetillusion == null || !e.targetillusion)) {
+                heroDeathsByTick.computeIfAbsent(e.tick, k -> new ArrayList<>()).add(e);
+            }
+        }
+        Map<Integer, List<CountedDeath>> countedByTick = new HashMap<>();
+        for (Map.Entry<Integer, List<Integer>> tick : deathTicks.entrySet()) {
+            for (Integer slot : tick.getValue()) {
+                CountedDeath death = new CountedDeath();
+                death.slot = slot;
+                Entry logged = loggedDeath(heroDeathsByTick, tick.getKey(), slot, meta);
+                if (logged != null) {
+                    death.victim = logged.targetname;
+                    death.time = logged.time;
+                    death.killerSlot = meta.hero_to_slot.get(logged.sourcename);
+                    death.listed = logged.assist_slots;
+                } else {
+                    // no combat log entry to take the name from: any name the
+                    // match maps to that slot
+                    for (Map.Entry<String, Integer> hero : meta.hero_to_slot.entrySet()) {
+                        if (slot.equals(hero.getValue())) {
+                            death.victim = hero.getKey();
+                            break;
+                        }
+                    }
+                }
+                countedByTick.computeIfAbsent(tick.getKey(), k -> new ArrayList<>()).add(death);
+            }
+        }
+        for (Entry increment : assistTicks) {
+            List<CountedDeath> deaths = countedByTick.get(increment.tick);
+            Integer playerSlot = meta.slot_to_player_slot.get(increment.slot);
+            if (deaths == null || playerSlot == null) {
+                continue;
+            }
+            int n = increment.value;
+            List<CountedDeath> enemies = new ArrayList<>();
+            for (CountedDeath death : deaths) {
+                Integer victimSlot = meta.slot_to_player_slot.get(death.slot);
+                if (victimSlot != null && isRadiant(victimSlot) != isRadiant(playerSlot)) {
+                    enemies.add(death);
+                }
+            }
+            // the game also credits some assists on a death on the player's own
+            // side, on the same tick; those count on the scoreboard too
+            List<CountedDeath> candidates = enemies.isEmpty() ? deaths : enemies;
+            if (candidates.size() > n) {
+                List<CountedDeath> notKilled = new ArrayList<>();
+                for (CountedDeath death : candidates) {
+                    if (!increment.slot.equals(death.killerSlot)) {
+                        notKilled.add(death);
+                    }
+                }
+                if (notKilled.size() >= n) {
+                    candidates = notKilled;
+                }
+            }
+            if (candidates.size() > n) {
+                List<CountedDeath> listed = new ArrayList<>();
+                for (CountedDeath death : candidates) {
+                    if (death.listed != null && death.listed.contains(increment.slot)) {
+                        listed.add(death);
+                    }
+                }
+                if (listed.size() >= n) {
+                    candidates = listed;
+                }
+            }
+            boolean tied = candidates.size() > n;
+            if (tied) {
+                ambiguousAssists += n;
+            }
+            for (int i = 0; i < n; i++) {
+                CountedDeath death = candidates.get(Math.min(i, candidates.size() - 1));
+                Entry assist = new Entry();
+                assist.time = death.time != null ? death.time : increment.time;
+                assist.slot = increment.slot;
+                assist.key = death.victim;
+                assist.type = "assists_log";
+                if (tied) {
+                    assist.ambiguous = true;
+                }
+                assistLog.add(assist);
+            }
+        }
+    }
+
+    // the combat log entry for a counted death, one tick before the counter moves.
+    // A Meepo death is logged once per Meepo, with the clones dying to Meepo
+    // himself, so the entry with another attacker is the one that counts
+    private Entry loggedDeath(Map<Integer, List<Entry>> heroDeathsByTick, Integer tick, Integer slot,
+            Metadata meta) {
+        for (int offset : new int[] { 1, 0, 2 }) {
+            List<Entry> logged = heroDeathsByTick.get(tick - offset);
+            if (logged == null) {
+                continue;
+            }
+            Entry match = null;
+            for (Entry e : logged) {
+                if (slot.equals(meta.hero_to_slot.get(e.targetname))) {
+                    if (match == null || (e.targetname.equals(match.sourcename)
+                            && !e.targetname.equals(e.sourcename))) {
+                        match = e;
+                    }
+                }
+            }
+            if (match != null) {
+                return match;
+            }
+        }
+        return null;
     }
 
     private boolean consumeReincarnationDeath(Integer slot, Integer time) {
@@ -788,6 +935,7 @@ public class CreateParsedDataBlob {
         precomputeReincarnations(entries, meta);
         precomputeMinuteSeries(entries, meta);
         precomputeSmokeWindows(entries, meta);
+        precomputeAssists(entries, meta);
 
         for (Entry e : entries) {
             String type = e.type;
@@ -901,6 +1049,17 @@ public class CreateParsedDataBlob {
                     // System.err.println("expand: (WARNING) new entry type " + e.type);
                     break;
             }
+        }
+
+        // emitted after the loop because each assist is paired with its death by
+        // the tick both counters moved, which the pre-scan resolves in full
+        for (Entry assist : assistLog) {
+            expand(assist, output, meta);
+        }
+        if (ambiguousAssists > 0) {
+            System.err.format("assists_log: %s of %s assists shared a tick with"
+                    + " more deaths than could be told apart\n",
+                    ambiguousAssists, assistLog.size());
         }
 
         return output;
@@ -1763,7 +1922,8 @@ public class CreateParsedDataBlob {
         return Arrays.asList("times", "gold_t", "lh_t", "dn_t", "xp_t", "networth_t",
                 "camps_stacked_t", "tower_damage_t", "hero_damage_t", "hero_healing_t", "obs_log",
                 "sen_log", "obs_left_log", "sen_left_log", "purchase_log", "kills_log",
-                "deaths_log", "buyback_log", "runes_log", "connection_log", "neutral_tokens_log",
+                "deaths_log", "assists_log", "buyback_log", "runes_log", "connection_log",
+                "neutral_tokens_log",
                 "neutral_item_history").contains(type);
     }
 
