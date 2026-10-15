@@ -150,15 +150,13 @@ public class CreateParsedDataBlob {
 
     private Gson g = new Gson();
 
-    // Damage/healing dealt to real (non-illusion) heroes, bucketed by slot and
-    // minute of the event time, then emitted as cumulative hero_damage_t and
-    // hero_healing_t series on minute boundaries. Bucketed by event time in a
-    // pre-scan (rather than accumulated in stream order) because combat log
-    // entries can appear in the stream after the interval entry of the same
-    // game time, which would drop the final minute of a match.
-    private Map<Integer, Map<Integer, Integer>> heroDamageMinuteBySlot = new HashMap<>();
+    // Healing done to real (non-illusion) heroes, bucketed by slot and minute of
+    // the event time, then emitted as a cumulative hero_healing_t series on minute
+    // boundaries. Bucketed by event time in a pre-scan (rather than accumulated in
+    // stream order) because combat log entries can appear in the stream after the
+    // interval entry of the same game time, which would drop the final minute of
+    // a match. hero_damage_t needs none of this: it samples the game's own counter.
     private Map<Integer, Map<Integer, Integer>> heroHealingMinuteBySlot = new HashMap<>();
-    private Map<Integer, Integer> heroDamageCumBySlot = new HashMap<>();
     private Map<Integer, Integer> heroHealingCumBySlot = new HashMap<>();
 
     // Events in (60*(k-1), 60*k] belong to bucket k so they are included in the
@@ -172,10 +170,8 @@ public class CreateParsedDataBlob {
             if (e.time == null || e.value == null) {
                 continue;
             }
-            // matches the Valve scoreboard definitions: damage/healing dealt to
-            // real (non-illusion) heroes other than yourself; illusion attacker
-            // damage counts toward the owning hero
-            if ("DOTA_COMBATLOG_DAMAGE".equals(e.type) || "DOTA_COMBATLOG_HEAL".equals(e.type)) {
+            // healing done to real (non-illusion) heroes other than yourself
+            if ("DOTA_COMBATLOG_HEAL".equals(e.type)) {
                 if (e.targethero == null || !e.targethero ||
                         (e.targetillusion != null && e.targetillusion) ||
                         e.targetname == null || e.targetname.equals(e.sourcename)) {
@@ -185,10 +181,7 @@ public class CreateParsedDataBlob {
                 if (sourceSlot == null) {
                     continue;
                 }
-                Map<Integer, Map<Integer, Integer>> target = "DOTA_COMBATLOG_DAMAGE".equals(e.type)
-                        ? heroDamageMinuteBySlot
-                        : heroHealingMinuteBySlot;
-                target.computeIfAbsent(sourceSlot, k -> new HashMap<>())
+                heroHealingMinuteBySlot.computeIfAbsent(sourceSlot, k -> new HashMap<>())
                         .merge(minuteBucket(e.time), e.value, Integer::sum);
             }
         }
@@ -1480,11 +1473,11 @@ public class CreateParsedDataBlob {
                     addIntervalData(e, output, meta, "tower_damage_t", e.tower_damage);
                 }
                 int minuteIdx = e.time / 60;
-                int dmgCum = heroDamageCumBySlot.getOrDefault(e.slot, 0)
-                        + heroDamageMinuteBySlot.getOrDefault(e.slot, Collections.emptyMap())
-                                .getOrDefault(minuteIdx, 0);
-                heroDamageCumBySlot.put(e.slot, dmgCum);
-                addIntervalData(e, output, meta, "hero_damage_t", dmgCum);
+                if (e.hero_damage != null) {
+                    // the game's own hero damage counter; not present in old replays,
+                    // which leave the array empty rather than filling with nulls
+                    addIntervalData(e, output, meta, "hero_damage_t", e.hero_damage);
+                }
                 int healCum = heroHealingCumBySlot.getOrDefault(e.slot, 0)
                         + heroHealingMinuteBySlot.getOrDefault(e.slot, Collections.emptyMap())
                                 .getOrDefault(minuteIdx, 0);

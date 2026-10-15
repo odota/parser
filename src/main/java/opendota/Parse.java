@@ -713,6 +713,10 @@ public class Parse {
                     entry.observers_placed = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iObserverWardsPlaced",
                             teamSlot);
                     entry.networth = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_iNetWorth", teamSlot);
+                    // the game's own hero damage counter, used for hero_damage_t instead of
+                    // a sum of the combat log
+                    Float heroDamage = getEntityProperty(dataTeam, "m_vecDataTeam.%i.m_flHeroDamage", teamSlot);
+                    entry.hero_damage = heroDamage == null ? null : Math.round(heroDamage);
                     entry.stage = draftStage;
 
                     if (teamSlot >= 0) {
