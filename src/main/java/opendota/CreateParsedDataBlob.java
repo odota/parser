@@ -1197,8 +1197,11 @@ public class CreateParsedDataBlob {
             return;
         }
 
+        // the combat log flags the Spirit Bear as a hero too, but killing it
+        // isn't a hero kill on the scoreboard
         if (e.targethero != null && e.targethero &&
-                (e.targetillusion == null || !e.targetillusion)) {
+                (e.targetillusion == null || !e.targetillusion)
+                && key != null && key.startsWith("npc_dota_hero_")) {
 
             Entry killLog = new Entry();
             killLog.time = e.time;
