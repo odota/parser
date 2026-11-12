@@ -99,6 +99,10 @@ public class Entry implements Cloneable {
     public Integer gold_fed;
     public Boolean gold_fed_shared;
     public Integer time_dead;
+    public Integer ally_distance;
+    public Integer allies_died_nearby;
+    // every hero's [x, y, alive] on the tick of a hero death, by slot
+    public List<int[]> hero_positions;
 
     public Entry() {
     }

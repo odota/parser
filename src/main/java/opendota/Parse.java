@@ -432,6 +432,30 @@ public class Parse {
         }
     }
 
+    // where every hero stands on the tick of a hero death, so deaths_log can say
+    // whether the victim had teammates around: [x, y, alive] in world units
+    private List<int[]> heroPositions(Context ctx) {
+        if (!init || playerResource == null) {
+            return null;
+        }
+        List<int[]> positions = new ArrayList<>();
+        for (int i = 0; i < numPlayers; i++) {
+            Integer handle = getEntityProperty(playerResource, "m_vecPlayerTeamData.%i.m_hSelectedHero", validIndices[i]);
+            Entity hero = handle == null ? null : ctx.getProcessor(Entities.class).getByHandle(handle);
+            Integer cx = getEntityProperty(hero, "CBodyComponent.m_cellX", null);
+            Integer cy = getEntityProperty(hero, "CBodyComponent.m_cellY", null);
+            Float vx = getEntityProperty(hero, "CBodyComponent.m_vecX", null);
+            Float vy = getEntityProperty(hero, "CBodyComponent.m_vecY", null);
+            Integer lifeState = getEntityProperty(hero, "m_lifeState", null);
+            if (cx == null || cy == null || vx == null || vy == null) {
+                return null;
+            }
+            positions.add(new int[] { Math.round(cx * 128 + vx), Math.round(cy * 128 + vy),
+                    lifeState != null && lifeState == 0 ? 1 : 0 });
+        }
+        return positions;
+    }
+
     @OnCombatLogEntry
     public void onCombatLogEntry(Context ctx, CombatLogEntry cle) {
         try {
@@ -449,6 +473,9 @@ public class Parse {
             if (cle.getType() == DOTA_COMBATLOG_TYPES.DOTA_COMBATLOG_DEATH && cle.isTargetHero()) {
                 combatLogEntry.tick = ctx.getTick();
                 combatLogEntry.assist_slots = assistSlots(cle);
+                if (!cle.isTargetIllusion()) {
+                    combatLogEntry.hero_positions = heroPositions(ctx);
+                }
             }
             combatLogEntry.targethero = cle.isTargetHero();
             combatLogEntry.attackerillusion = cle.isAttackerIllusion();

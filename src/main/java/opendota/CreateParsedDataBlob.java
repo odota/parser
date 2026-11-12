@@ -391,6 +391,12 @@ public class CreateParsedDataBlob {
                 if (e.time_dead != null) {
                     obj.put("time_dead", e.time_dead);
                 }
+                if (e.ally_distance != null) {
+                    obj.put("ally_distance", e.ally_distance);
+                }
+                if (e.allies_died_nearby != null) {
+                    obj.put("allies_died_nearby", e.allies_died_nearby);
+                }
             }
 
             if ("purchase_log".equals(e.type)) {
@@ -753,6 +759,48 @@ public class CreateParsedDataBlob {
             }
         }
         return null;
+    }
+
+    // A death with a teammate close enough to help (alive, within ally_distance),
+    // or with teammates who fell in the same fight just before (allies_died_nearby),
+    // is a death with the team; one with neither is a death alone. The raw numbers
+    // are kept so the consumer picks the range.
+    private static final int FIGHT_RADIUS = 1200;
+    private static final int FIGHT_WINDOW_SECONDS = 10;
+    private List<int[]> deathSpots = new ArrayList<>(); // [time, slot, x, y]
+
+    private void setAlliesAround(Entry deathLog, Entry e, Integer victimSlot, Metadata meta) {
+        List<int[]> positions = e.hero_positions;
+        Integer victimPlayerSlot = victimSlot == null ? null : meta.slot_to_player_slot.get(victimSlot);
+        if (positions == null || victimPlayerSlot == null || victimSlot >= positions.size()) {
+            return;
+        }
+        boolean radiant = isRadiant(victimPlayerSlot);
+        int[] victim = positions.get(victimSlot);
+        Double nearest = null;
+        for (int slot = 0; slot < positions.size(); slot++) {
+            Integer playerSlot = meta.slot_to_player_slot.get(slot);
+            int[] p = positions.get(slot);
+            if (slot == victimSlot || playerSlot == null || isRadiant(playerSlot) != radiant || p[2] == 0) {
+                continue;
+            }
+            double d = Math.hypot(p[0] - victim[0], p[1] - victim[1]);
+            if (nearest == null || d < nearest) {
+                nearest = d;
+            }
+        }
+        deathLog.ally_distance = nearest == null ? null : (int) Math.round(nearest);
+        int fell = 0;
+        for (int[] spot : deathSpots) {
+            Integer playerSlot = meta.slot_to_player_slot.get(spot[1]);
+            if (spot[1] != victimSlot && playerSlot != null && isRadiant(playerSlot) == radiant
+                    && e.time - spot[0] <= FIGHT_WINDOW_SECONDS && e.time - spot[0] >= 0
+                    && Math.hypot(spot[2] - victim[0], spot[3] - victim[1]) <= FIGHT_RADIUS) {
+                fell++;
+            }
+        }
+        deathLog.allies_died_nearby = fell;
+        deathSpots.add(new int[] { e.time, victimSlot, victim[0], victim[1] });
     }
 
     private boolean consumeReincarnationDeath(Integer slot, Integer time) {
@@ -1181,6 +1229,7 @@ public class CreateParsedDataBlob {
                     victimPlayerSlot == null ? null : !isRadiant(victimPlayerSlot), e.time);
             deathLog.gold_fed_shared = sharedGoldFed ? Boolean.TRUE : null;
             deathLog.time_dead = lookupTimeDead(victimSlot, e.time);
+            setAlliesAround(deathLog, e, victimSlot, meta);
             Entry emitted = expand(deathLog, output, meta);
             if (lastKillGoldKey != null) {
                 killGoldTakenBy.put(lastKillGoldKey, emitted);
