@@ -1353,6 +1353,11 @@ public class CreateParsedDataBlob {
     }
 
     private void handleActions(Entry e, List<Entry> output, Metadata meta) {
+        // APM divides by duration, which starts at the horn, so the orders given
+        // before it (up to 90s in a normal match) only inflate it
+        if (e.time != null && e.time < 0) {
+            return;
+        }
         Entry action = new Entry();
         action.time = e.time;
         action.type = e.type;
