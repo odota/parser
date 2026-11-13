@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -576,6 +577,14 @@ public class CreateParsedDataBlob {
     private List<Entry> assistLog = new ArrayList<>();
     private int ambiguousAssists = 0;
 
+    // kills_log: when a tower or a creep lands the last hit on a hero, the
+    // combat log has no hero as the attacker, but the game can still credit the
+    // kill to a hero on the other side (the scoreboard counts it). That hero's
+    // kill counter moves on the tick the death is counted, so the death's combat
+    // log entry is mapped here to the slot credited with it
+    private Map<Entry, Integer> creditedKiller = new IdentityHashMap<>();
+    private int unpairedKills = 0;
+
     private void precomputeReincarnations(List<Entry> entries, Metadata meta) {
         wkSlot = meta.hero_to_slot.get(WK_HERO);
         Map<Integer, Integer> lastState = new HashMap<>();
@@ -631,15 +640,19 @@ public class CreateParsedDataBlob {
         String victim;
         Integer killerSlot;
         List<Integer> listed;
+        Entry logged;
     }
 
     private void precomputeAssists(List<Entry> entries, Metadata meta) {
         Map<Integer, List<Entry>> heroDeathsByTick = new HashMap<>();
         Map<Integer, List<Integer>> deathTicks = new HashMap<>();
         List<Entry> assistTicks = new ArrayList<>();
+        List<Entry> killTicks = new ArrayList<>();
         for (Entry e : entries) {
             if ("assist_tick".equals(e.type)) {
                 assistTicks.add(e);
+            } else if ("kill_tick".equals(e.type)) {
+                killTicks.add(e);
             } else if ("death_tick".equals(e.type)) {
                 deathTicks.computeIfAbsent(e.tick, k -> new ArrayList<>()).add(e.slot);
             } else if ("DOTA_COMBATLOG_DEATH".equals(e.type) && e.tick != null
@@ -658,6 +671,7 @@ public class CreateParsedDataBlob {
                     death.time = logged.time;
                     death.killerSlot = meta.hero_to_slot.get(logged.sourcename);
                     death.listed = logged.assist_slots;
+                    death.logged = logged;
                 } else {
                     // no combat log entry to take the name from: any name the
                     // match maps to that slot
@@ -671,6 +685,7 @@ public class CreateParsedDataBlob {
                 countedByTick.computeIfAbsent(tick.getKey(), k -> new ArrayList<>()).add(death);
             }
         }
+        creditKillsWithoutHeroAttacker(killTicks, countedByTick, meta);
         for (Entry increment : assistTicks) {
             List<CountedDeath> deaths = countedByTick.get(increment.tick);
             Integer playerSlot = meta.slot_to_player_slot.get(increment.slot);
@@ -725,6 +740,49 @@ public class CreateParsedDataBlob {
                     assist.ambiguous = true;
                 }
                 assistLog.add(assist);
+            }
+        }
+    }
+
+    private void creditKillsWithoutHeroAttacker(List<Entry> killTicks,
+            Map<Integer, List<CountedDeath>> countedByTick, Metadata meta) {
+        Map<Integer, Map<Integer, Integer>> byTick = new HashMap<>();
+        for (Entry k : killTicks) {
+            byTick.computeIfAbsent(k.tick, t -> new HashMap<>()).merge(k.slot, k.value, Integer::sum);
+        }
+        for (Map.Entry<Integer, Map<Integer, Integer>> tick : byTick.entrySet()) {
+            List<CountedDeath> deaths = countedByTick.get(tick.getKey());
+            if (deaths == null) {
+                continue;
+            }
+            Map<Integer, Integer> left = new HashMap<>(tick.getValue());
+            // the kills the combat log already gives to the hero that moved
+            for (CountedDeath death : deaths) {
+                if (death.killerSlot != null && left.getOrDefault(death.killerSlot, 0) > 0) {
+                    left.merge(death.killerSlot, -1, Integer::sum);
+                }
+            }
+            for (Map.Entry<Integer, Integer> credit : left.entrySet()) {
+                Integer killer = credit.getKey();
+                Integer killerPlayerSlot = meta.slot_to_player_slot.get(killer);
+                for (int i = 0; i < credit.getValue(); i++) {
+                    CountedDeath pick = null;
+                    for (CountedDeath death : deaths) {
+                        Integer victimPlayerSlot = meta.slot_to_player_slot.get(death.slot);
+                        if (death.killerSlot == null && death.logged != null
+                                && !creditedKiller.containsKey(death.logged)
+                                && killerPlayerSlot != null && victimPlayerSlot != null
+                                && isRadiant(victimPlayerSlot) != isRadiant(killerPlayerSlot)) {
+                            pick = death;
+                            break;
+                        }
+                    }
+                    if (pick == null) {
+                        unpairedKills += 1;
+                        continue;
+                    }
+                    creditedKiller.put(pick.logged, killer);
+                }
             }
         }
     }
@@ -1049,6 +1107,10 @@ public class CreateParsedDataBlob {
         for (Entry assist : assistLog) {
             expand(assist, output, meta);
         }
+        if (unpairedKills > 0) {
+            System.err.format("kills_log: %s credited kills had no tower or creep death on their tick\n",
+                    unpairedKills);
+        }
         if (ambiguousAssists > 0) {
             System.err.format("assists_log: %s of %s assists shared a tick with"
                     + " more deaths than could be told apart\n",
@@ -1209,7 +1271,13 @@ public class CreateParsedDataBlob {
             killLog.key = key;
             killLog.tracked_death = e.tracked_death;
             killLog.tracked_sourcename = e.tracked_sourcename;
-            if (wasSmoked(meta.hero_to_slot.get(unit), e.time)) {
+            Integer killerSlot = meta.hero_to_slot.get(unit);
+            if (killerSlot == null && creditedKiller.containsKey(e)) {
+                // a tower or creep kill the game credited to a hero
+                killerSlot = creditedKiller.get(e);
+                killLog.slot = killerSlot;
+            }
+            if (wasSmoked(killerSlot, e.time)) {
                 killLog.smoke = true;
             }
             killLog.type = "kills_log";

@@ -366,29 +366,37 @@ public class Parse {
 
     // assists_log reads the assist and death counters on every tick, not once a
     // second with the intervals: an assist is credited on the exact tick the death
-    // it belongs to is counted, which is what lets the two be paired
+    // it belongs to is counted, which is what lets the two be paired. The kill
+    // counter is read the same way, for the kills the combat log gives to a
+    // tower or a creep while the game credits a hero
     private Integer[] lastAssists = new Integer[numPlayers];
     private Integer[] lastDeaths = new Integer[numPlayers];
+    private Integer[] lastKills = new Integer[numPlayers];
 
     // read on every tick, so the field paths are resolved once per player
     private FieldPath[] assistsPaths;
     private FieldPath[] deathsPaths;
+    private FieldPath[] killsPaths;
 
     private void trackAssistCounters(Context ctx, Entity pr) {
         if (assistsPaths == null) {
             assistsPaths = new FieldPath[numPlayers];
             deathsPaths = new FieldPath[numPlayers];
+            killsPaths = new FieldPath[numPlayers];
             for (int i = 0; i < numPlayers; i++) {
                 assistsPaths[i] = fieldPath(pr, indexedName("m_vecPlayerTeamData.%i.m_iAssists", validIndices[i]));
                 deathsPaths[i] = fieldPath(pr, indexedName("m_vecPlayerTeamData.%i.m_iDeaths", validIndices[i]));
+                killsPaths[i] = fieldPath(pr, indexedName("m_vecPlayerTeamData.%i.m_iKills", validIndices[i]));
             }
         }
         for (int i = 0; i < numPlayers; i++) {
             try {
                 Integer assists = assistsPaths[i] == null ? null : pr.getPropertyForFieldPath(assistsPaths[i]);
                 Integer deaths = deathsPaths[i] == null ? null : pr.getPropertyForFieldPath(deathsPaths[i]);
+                Integer kills = killsPaths[i] == null ? null : pr.getPropertyForFieldPath(killsPaths[i]);
                 emitCounterIncrease("assist_tick", i, assists, lastAssists, ctx.getTick());
                 emitCounterIncrease("death_tick", i, deaths, lastDeaths, ctx.getTick());
+                emitCounterIncrease("kill_tick", i, kills, lastKills, ctx.getTick());
             } catch (Exception e) {
                 // a player index the resource doesn't carry
             }
